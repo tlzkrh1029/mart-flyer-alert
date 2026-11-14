@@ -7,9 +7,10 @@
                 이마트·롯데마트 전단은 전국 공통이라, 매주 빠짐없이 전단을 올리는 지점 채널을 쓴다.
 
 쓰는 파일
-  work/manifest.json : 이번 실행에서 처리할 전단 목록(Claude 단계와 evaluate.py 가 읽는다)
+  work/manifest.json : 이번 실행에서 처리할 전단 목록(evaluate.py 가 읽는다)
+  work/batch_N.json  : Claude 판독 단계 N 이 읽을 목록. 전단 하나가 한 묶음이고, 조각이 많은 전단은 여러 묶음으로 나눈다
   work/img/<key>/    : 내려받아 나눈 이미지
-  GITHUB_OUTPUT      : new=true|false
+  GITHUB_OUTPUT      : new=true|false, batches=묶음 수
 읽는 파일
   state/seen.json    : 이미 처리한 전단(마트몬은 서명, 카카오는 게시물 번호와 날짜 키)
 
@@ -19,6 +20,7 @@ import argparse
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import sys
@@ -30,8 +32,10 @@ from html.parser import HTMLParser
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORK = os.path.join(ROOT, "work")
 UA = "Mozilla/5.0 (compatible; mart-flyer-alert/1.0; +https://github.com/tlzkrh1029/mart-flyer-alert)"
-MAX_CHUNKS = 40          # 한 번 실행에 Claude 에게 맡기는 이미지 조각 수 상한. 넘치는 전단은 다음 실행으로 미룬다
-                         # (세 매장 66조각을 한 번에 맡겼더니 Claude 가 이마트 대부분을 '한도 초과'로 읽지 못했다)
+# Claude 는 한 세션에서 이미지를 많이 읽으면 먼저 읽은 이미지를 대화에서 비운다. 세 매장 66조각을 한 세션에 맡겼더니
+# 처음 읽은 이마트 21조각이 비워져 '한도 초과로 판독 못 함'으로 돌아왔다(남은 45조각은 정상). 그래서 전단마다 세션을 따로 쓴다.
+BATCH_CHUNKS = 30        # Claude 세션 하나가 읽는 조각 수 상한. 넘는 전단은 고르게 나눠 여러 세션에서 읽는다
+MAX_BATCHES = 5          # 한 번 실행의 세션 수 상한. .github/workflows/flyers.yml 의 'Claude 전단 판독 1~5' 단계 수와 맞춘다
 MAX_WIDTH = 1200         # 이보다 넓은 이미지는 줄인다
 CHUNK_ASPECT = 0.8       # 조각 높이 = 너비 x 0.8. 1200x960(약 1.15MP)은 Claude 가 더 줄이지 않고 읽는 크기다
 CHUNK_OVERLAP = 0.12     # 위아래 조각이 겹치는 비율(품목이 경계에서 잘리지 않게)
@@ -258,6 +262,44 @@ def download_and_split(urls, key, referer=None):
     return chunks   # 절대 경로(Claude 의 Read 도구는 절대 경로를 받는다)
 
 
+# ---------------------------------------------------------------- 판독 묶음
+
+def parts_needed(n_chunks):
+    return max(1, math.ceil(n_chunks / BATCH_CHUNKS))
+
+
+def plan_batches(flyers):
+    """전단마다 Claude 세션(묶음)을 따로 쓴다. 조각이 BATCH_CHUNKS 보다 많은 전단은 고르게 나눈다.
+    게시물 본문(text)은 첫 묶음에만 넣어 같은 품목을 두 번 적지 않게 한다."""
+    batches = []
+    for f in flyers:
+        imgs = f["images"]
+        k = parts_needed(len(imgs))
+        size = math.ceil(len(imgs) / k)
+        for i in range(k):
+            part = {"key": f["key"], "store_name": f["store_name"], "period": f["period"],
+                    "images": imgs[i * size:(i + 1) * size], "text": f.get("text", "") if i == 0 else ""}
+            if k > 1:
+                part["part"] = f"{i + 1}/{k}"
+            batches.append({"flyers": [part]})
+    return batches
+
+
+def take_slots(flyers, images, slots, sid, post_id=None):
+    """이 전단에 필요한 세션 수를 남은 칸에서 뺀다. 칸이 모자라면 None(다음 실행으로 미룸).
+    첫 전단은 미루지 않는다. 너무 크면 앞쪽 조각만 남긴다."""
+    need = parts_needed(len(images))
+    what = f"post {post_id}" if post_id else "flyer"
+    if need <= slots:
+        return images, slots - need
+    if flyers:
+        warn(f"{sid}: {len(images)} chunks need {need} reading sessions but only {slots} left; {what} deferred")
+        return None, slots
+    keep = slots * BATCH_CHUNKS
+    warn(f"{sid}: {len(images)} chunks are too many for one run; reading only the first {keep}")
+    return images[:keep], 0
+
+
 # ---------------------------------------------------------------- 실행
 
 def main():
@@ -270,8 +312,12 @@ def main():
     seen = load_json(os.path.join(ROOT, "state", "seen.json"), {})
     os.makedirs(WORK, exist_ok=True)
 
+    for old in os.listdir(WORK):
+        if re.fullmatch(r"batch_\d+\.json", old):
+            os.remove(os.path.join(WORK, old))
+
     flyers = []
-    budget = MAX_CHUNKS
+    slots = MAX_BATCHES
     for store in stores:
         sid = store["id"]
         if store.get("enabled") is False:
@@ -289,14 +335,16 @@ def main():
                 if sig == st.get("sig") and not forced:
                     log(f"{sid}: unchanged ({sig}, {info['period']})")
                     continue
-                if budget <= 0:
-                    warn(f"{sid}: chunk budget used up; deferred to the next run")
+                if slots <= 0:
+                    warn(f"{sid}: no reading session left; deferred to the next run")
                     continue
                 key = f"{sid}-{sig}"
                 images = download_and_split(info["images"], key, referer=store["url"])
                 if not images:
                     continue
-                budget -= len(images)
+                images, slots = take_slots(flyers, images, slots, sid)
+                if images is None:
+                    continue
                 flyers.append({
                     "key": key, "store_id": sid, "store_name": store["name"], "source": "martmonster",
                     "title": info["title"] or store["name"], "period": info["period"], "link": store["url"],
@@ -310,17 +358,16 @@ def main():
                 if not picks:
                     log(f"{sid}: no new posts")
                 for post, urls, text, dkey, ids in picks:
-                    if budget <= 0:
-                        warn(f"{sid}: chunk budget used up; post {post.get('id')} deferred")
+                    if slots <= 0:
+                        warn(f"{sid}: no reading session left; post {post.get('id')} deferred")
                         break
                     key = f"{sid}-{post.get('id')}"
                     images = download_and_split(urls[:25], key)
                     if not images:
                         continue
-                    if flyers and len(images) > budget:
-                        warn(f"{sid}: {len(images)} chunks exceed the remaining budget {budget}; post {post.get('id')} deferred")
+                    images, slots = take_slots(flyers, images, slots, sid, post.get("id"))
+                    if images is None:
                         break
-                    budget -= len(images)
                     flyers.append({
                         "key": key, "store_id": sid, "store_name": store["name"], "source": "kakao",
                         "title": post.get("title") or "", "period": post.get("title") or "",
@@ -337,12 +384,17 @@ def main():
     manifest = {"generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "flyers": flyers}
     with open(os.path.join(WORK, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=1)
+    batches = plan_batches(flyers)
+    for n, batch in enumerate(batches, 1):
+        with open(os.path.join(WORK, f"batch_{n}.json"), "w", encoding="utf-8") as f:
+            json.dump(batch, f, ensure_ascii=False, indent=1)
     new = "true" if flyers else "false"
-    log(f"new flyers: {len(flyers)} ({MAX_CHUNKS - budget} chunks)")
+    chunks = sum(len(f["images"]) for f in flyers)
+    log(f"new flyers: {len(flyers)} ({chunks} chunks, {len(batches)} reading session(s))")
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a", encoding="utf-8") as f:
-            f.write(f"new={new}\n")
+            f.write(f"new={new}\nbatches={len(batches)}\n")
     return 0
 
 

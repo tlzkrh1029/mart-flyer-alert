@@ -3,7 +3,9 @@
 
 읽는 것
   work/manifest.json     : fetch_flyers.py 가 만든 이번 실행의 전단 목록
-  CLAUDE_OUT(환경 변수)   : Claude 단계의 구조화된 출력(JSON 문자열). --input 파일로 대신 줄 수 있다
+  work/batch_N.json      : 판독 묶음 N 에 들어간 전단 key 와 이미지(없으면 manifest 전체를 한 묶음으로 본다)
+  CLAUDE_OUT_N(환경 변수) : 판독 단계 N 의 구조화된 출력(JSON 문자열). --input 파일을 묶음 순서대로 여러 번 줄 수 있다
+                           (CLAUDE_OUT 하나만 있으면 묶음 1 의 출력으로 본다)
   config/criteria.json   : 알림 기준
 쓰는 것
   work/messages.json     : 보낼 메시지 목록(전단 하나에 메시지 하나)
@@ -287,6 +289,49 @@ def mostly_unread(flyer, res):
     return len(unread & set(images)) >= len(images) / 2
 
 
+def load_batches(manifest):
+    """판독 묶음 목록. 묶음 파일이 없으면(예전 실행·시험) manifest 전체를 한 묶음으로 본다."""
+    batches, n = [], 1
+    while os.path.exists(os.path.join(WORK, f"batch_{n}.json")):
+        batches.append(load_json(os.path.join(WORK, f"batch_{n}.json"), {"flyers": []}))
+        n += 1
+    return batches or [{"flyers": manifest.get("flyers", [])}]
+
+
+def load_outputs(inputs, count):
+    """묶음 번호(1부터) → 원본 출력 문자열."""
+    if inputs:
+        return {i + 1: open(p, encoding="utf-8").read() for i, p in enumerate(inputs)}
+    outs = {n: os.environ.get(f"CLAUDE_OUT_{n}", "") for n in range(1, count + 1)}
+    if not outs.get(1) and os.environ.get("CLAUDE_OUT"):
+        outs[1] = os.environ["CLAUDE_OUT"]
+    return outs
+
+
+def merge_batches(batches, raw_outputs):
+    """묶음별 출력을 전단 key 별로 합친다. 묶음 하나라도 빠지거나 대부분 읽지 못한 전단은 결과에서 뺀다(실패)."""
+    merged, failed = {}, set()
+    for n, batch in enumerate(batches, 1):
+        out = parse_output(raw_outputs.get(n, ""))
+        if out is None:
+            print(f"::warning::reading session {n}: no usable Claude output "
+                  f"(step outcome: {os.environ.get(f'CLAUDE_CONCLUSION_{n}', os.environ.get('CLAUDE_CONCLUSION', '?'))})")
+        by_key = {f.get("key"): f for f in (out or {}).get("flyers", []) if isinstance(f, dict)}
+        for part in batch.get("flyers", []):
+            key = part["key"]
+            res = by_key.get(key)
+            if res is not None and mostly_unread(part, res):
+                print(f"::warning::{key} (session {n}): most images came back unread; treating as a failed read")
+                res = None
+            if res is None:
+                failed.add(key)
+                continue
+            m = merged.setdefault(key, {"key": key, "items": [], "unread": []})
+            m["items"] += [i for i in (res.get("items") or []) if isinstance(i, dict)]
+            m["unread"] += list(res.get("unread") or [])
+    return {k: v for k, v in merged.items() if k not in failed}
+
+
 def parse_output(raw):
     if not raw:
         return None
@@ -304,7 +349,8 @@ def parse_output(raw):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--input", help="Claude 출력 JSON 파일(없으면 환경 변수 CLAUDE_OUT)")
+    ap.add_argument("--input", action="append",
+                    help="Claude 출력 JSON 파일. 묶음 순서대로 여러 번 줄 수 있다(없으면 환경 변수 CLAUDE_OUT_N)")
     ap.add_argument("--no-state", action="store_true", help="state/ 를 고치지 않는다(시험용)")
     args = ap.parse_args()
 
@@ -312,19 +358,13 @@ def main():
     criteria = load_json(os.path.join(ROOT, "config", "criteria.json"), {"rules": []})
     seen_path = os.path.join(STATE, "seen.json")
     seen = load_json(seen_path, {})
-    raw = open(args.input, encoding="utf-8").read() if args.input else os.environ.get("CLAUDE_OUT", "")
-    out = parse_output(raw)
-    if out is None:
-        print(f"::warning::no usable Claude output (step outcome: {os.environ.get('CLAUDE_CONCLUSION', '?')})")
-    by_key = {f.get("key"): f for f in (out or {}).get("flyers", []) if isinstance(f, dict)}
+    batches = load_batches(manifest)
+    by_key = merge_batches(batches, load_outputs(args.input, len(batches)))
 
     messages, summary, cards = [], [], []
     today = time.strftime("%Y%m%d")
     for flyer in manifest.get("flyers", []):
         res = by_key.get(flyer["key"])
-        if res is not None and mostly_unread(flyer, res):
-            print(f"::warning::{flyer['key']}: most images came back unread; treating as a failed read")
-            res = None
         if res is None:
             st = seen.setdefault(flyer["store_id"], {})
             fails = st.setdefault("fail", {})

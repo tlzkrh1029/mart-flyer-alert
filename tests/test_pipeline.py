@@ -207,5 +207,48 @@ class TestRun(unittest.TestCase):
         self.assertFalse(evaluate.mostly_unread({"images": imgs[:2]}, bad))   # 조각이 적은 전단은 보지 않는다
 
 
+
+class TestBatches(unittest.TestCase):
+    """전단마다 Claude 세션을 따로 쓰고, 조각이 많은 전단은 나눠 읽은 뒤 합친다"""
+
+    def flyer(self, key, n, text=""):
+        return {"key": key, "store_id": key.split("-")[0], "store_name": key, "period": "기간",
+                "images": [f"/w/{key}/{i:02d}_a.jpg" for i in range(1, n + 1)], "text": text}
+
+    def test_plan(self):
+        b = fetch_flyers.plan_batches([self.flyer("emart-1", 24), self.flyer("lotte-2", 10), self.flyer("kims-3", 32, "본문")])
+        self.assertEqual([len(x["flyers"][0]["images"]) for x in b], [24, 10, 16, 16])   # 32조각은 16+16
+        self.assertEqual([x["flyers"][0].get("part") for x in b], [None, None, "1/2", "2/2"])
+        self.assertEqual([x["flyers"][0]["text"] for x in b[2:]], ["본문", ""])             # 본문은 첫 묶음에만
+        self.assertTrue(all(len(x["flyers"]) == 1 for x in b))                            # 세션 하나에 전단 하나
+
+    def test_slots(self):
+        imgs = list(range(32))
+        got, left = fetch_flyers.take_slots([], imgs, 5, "kims")
+        self.assertEqual((len(got), left), (32, 3))
+        got, left = fetch_flyers.take_slots(["x"], imgs, 1, "kims")                       # 칸이 모자라면 다음 실행으로
+        self.assertEqual((got, left), (None, 1))
+        got, left = fetch_flyers.take_slots([], list(range(200)), 5, "big")              # 첫 전단은 앞쪽만 읽는다
+        self.assertEqual((len(got), left), (150, 0))
+
+    def test_merge(self):
+        f = self.flyer("kims-3", 32)
+        b = fetch_flyers.plan_batches([f, self.flyer("emart-1", 8)])
+        p1, p2 = b[0]["flyers"][0]["images"], b[1]["flyers"][0]["images"]
+        out = lambda key, name, unread=(): json.dumps({"flyers": [{"key": key, "items": [{"name": name}], "unread": list(unread)}]})
+        both = evaluate.merge_batches(b, {1: out("kims-3", "a"), 2: out("kims-3", "b"), 3: out("emart-1", "c")})
+        self.assertEqual([i["name"] for i in both["kims-3"]["items"]], ["a", "b"])
+        self.assertIn("emart-1", both)
+        # 한 묶음이 빠지면 그 전단 전체를 실패로 본다(일부만 읽은 결과로 알림을 보내지 않는다)
+        miss = evaluate.merge_batches(b, {1: out("kims-3", "a"), 2: "", 3: out("emart-1", "c")})
+        self.assertNotIn("kims-3", miss)
+        self.assertIn("emart-1", miss)
+        # 한 묶음을 대부분 읽지 못해도 실패
+        bad = [f"{p}: 한도 초과로 판독 못 함" for p in p2[:10]]
+        half = evaluate.merge_batches(b, {1: out("kims-3", "a"), 2: out("kims-3", "b", bad), 3: out("emart-1", "c")})
+        self.assertNotIn("kims-3", half)
+        self.assertEqual(len(p1) + len(p2), 32)
+
+
 if __name__ == "__main__":
     unittest.main()
