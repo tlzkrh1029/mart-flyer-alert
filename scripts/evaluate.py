@@ -277,6 +277,16 @@ def mark_done(seen, flyer):
     st.get("fail", {}).pop(flyer["key"], None)
 
 
+def mostly_unread(flyer, res):
+    """조각의 절반 이상을 '읽지 못함'으로 돌려준 판독은 실패로 본다.
+    이런 결과로 '기준에 맞는 품목이 없다'고 보내면 잘못된 알림이 되므로, 다음 실행이 다시 읽게 한다."""
+    images = flyer.get("images") or []
+    if len(images) < 4:
+        return False
+    unread = {str(u).split(":")[0].strip() for u in (res.get("unread") or [])}
+    return len(unread & set(images)) >= len(images) / 2
+
+
 def parse_output(raw):
     if not raw:
         return None
@@ -312,6 +322,9 @@ def main():
     today = time.strftime("%Y%m%d")
     for flyer in manifest.get("flyers", []):
         res = by_key.get(flyer["key"])
+        if res is not None and mostly_unread(flyer, res):
+            print(f"::warning::{flyer['key']}: most images came back unread; treating as a failed read")
+            res = None
         if res is None:
             st = seen.setdefault(flyer["store_id"], {})
             fails = st.setdefault("fail", {})

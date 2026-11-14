@@ -30,7 +30,8 @@ from html.parser import HTMLParser
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORK = os.path.join(ROOT, "work")
 UA = "Mozilla/5.0 (compatible; mart-flyer-alert/1.0; +https://github.com/tlzkrh1029/mart-flyer-alert)"
-MAX_CHUNKS = 90          # 한 번 실행에 Claude 에게 맡기는 이미지 조각 수 상한(구독 사용량 보호). 넘치는 전단은 다음 실행으로 미룬다
+MAX_CHUNKS = 40          # 한 번 실행에 Claude 에게 맡기는 이미지 조각 수 상한. 넘치는 전단은 다음 실행으로 미룬다
+                         # (세 매장 66조각을 한 번에 맡겼더니 Claude 가 이마트 대부분을 '한도 초과'로 읽지 못했다)
 MAX_WIDTH = 1200         # 이보다 넓은 이미지는 줄인다
 CHUNK_ASPECT = 0.8       # 조각 높이 = 너비 x 0.8. 1200x960(약 1.15MP)은 Claude 가 더 줄이지 않고 읽는 크기다
 CHUNK_OVERLAP = 0.12     # 위아래 조각이 겹치는 비율(품목이 경계에서 잘리지 않게)
@@ -316,6 +317,9 @@ def main():
                     images = download_and_split(urls[:25], key)
                     if not images:
                         continue
+                    if flyers and len(images) > budget:
+                        warn(f"{sid}: {len(images)} chunks exceed the remaining budget {budget}; post {post.get('id')} deferred")
+                        break
                     budget -= len(images)
                     flyers.append({
                         "key": key, "store_id": sid, "store_name": store["name"], "source": "kakao",

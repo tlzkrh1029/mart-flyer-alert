@@ -194,6 +194,18 @@ class TestRun(unittest.TestCase):
             msgs = json.load(open(os.path.join(work, "messages.json"), encoding="utf-8"))
             self.assertTrue(any(m.startswith("⚠️ 롯데마트 의왕점") for m in msgs))
 
+            cards = json.load(open(os.path.join(work, "cards.json"), encoding="utf-8"))
+            self.assertEqual(cards[0]["msg"], 0)                            # 카드 재료는 메시지 순번과 짝을 이룬다
+
+    def test_mostly_unread_is_failure(self):
+        imgs = [f"/w/{i:02d}_a.jpg" for i in range(1, 9)]
+        flyer = {"images": imgs}
+        bad = {"items": [{"name": "x"}], "unread": [f"{p}: 한도 초과로 판독 못 함" for p in imgs[:6]]}
+        ok = {"items": [{"name": "x"}], "unread": [f"{imgs[0]}: 가격이 흐림"]}
+        self.assertTrue(evaluate.mostly_unread(flyer, bad))
+        self.assertFalse(evaluate.mostly_unread(flyer, ok))
+        self.assertFalse(evaluate.mostly_unread({"images": imgs[:2]}, bad))   # 조각이 적은 전단은 보지 않는다
+
 
 if __name__ == "__main__":
     unittest.main()
