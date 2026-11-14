@@ -11,6 +11,7 @@
 DRY_RUN 이 비어 있지 않으면 보내지 않고 로그에만 남긴다.
 텔레그램 메시지 한 건은 4096자까지이므로 긴 본문은 줄 단위로 나눠 보낸다.
 """
+import http.client
 import json
 import os
 import sys
@@ -24,6 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORK = os.path.join(ROOT, "work")
 LIMIT = 3800
 ALBUM_MAX = 10
+NET_TRIES = 3               # 연결이 끊겼을 때 다시 보내는 횟수
 
 
 def load(name, default):
@@ -54,12 +56,22 @@ def api(token, method, fields, files=None, retry=True):
         body, ctype = multipart(fields, files)
     else:
         body, ctype = urllib.parse.urlencode(fields).encode(), "application/x-www-form-urlencoded"
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": ctype})
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        payload = json.loads(e.read().decode("utf-8") or "{}")
+    payload = None
+    for attempt in range(NET_TRIES):
+        req = urllib.request.Request(url, data=body, headers={"Content-Type": ctype})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as e:
+            payload = json.loads(e.read().decode("utf-8") or "{}")
+            break
+        except (urllib.error.URLError, ConnectionError, TimeoutError, http.client.HTTPException) as e:
+            # 큰 앨범을 올린 직후 연결이 끊기는 일이 있어, 잠깐 쉬고 다시 보낸다
+            if attempt == NET_TRIES - 1:
+                raise
+            print(f"::warning::telegram {method}: {e}; retrying")
+            time.sleep(3 * (attempt + 1))
     if payload.get("ok"):
         return payload["result"]
     wait = (payload.get("parameters") or {}).get("retry_after")
