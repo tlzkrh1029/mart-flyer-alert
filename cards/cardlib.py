@@ -471,24 +471,52 @@ def compare_pick(items, cat, criteria=None):
     return best
 
 
-def compare_note(it, basis, unit=""):
-    parts = []
+# 조건이 붙은 가격(포인트 적립·회원·카드 결제)은 비교 칸에 조건을 꼭 적는다
+COND_TAGS = [
+    (r"신세계\s*포인트|포인트\s*적립", "포인트 적립"),
+    (r"L\.?\s*POINT|엘\s*포인트|L\s*포인트", "L.POINT"),
+    (r"행사\s*카드", "행사카드"),
+    (r"카드", "카드 결제"),
+    (r"회원", "회원"),
+    (r"쿠폰", "쿠폰"),
+]
+
+
+def cond_tag(it):
+    text = f"{it.get('cond') or ''} {it.get('deal') or ''}"
+    for pat, tag in COND_TAGS:
+        if re.search(pat, text, re.I):
+            return tag
+    return ""
+
+
+def compare_pack(it):
+    """칸 둘째 줄: 전단에 적힌 판매 단위와 실제 가격(3kg 10,980원). 큰 숫자인 단위 가격과 헷갈리지 않게 한다."""
     s = spec_short(it)
-    if s in SIZE_WORDS:
-        parts.append(s)
-    q = qty_text(it, per100=(basis == "100g" and it.get("grams") == 100))
-    if q and basis != "100g" and q != unit:
-        parts.append(q)
+    q = re.sub(r"\s*\(.*?\)", "", qty_text(it) or "").replace(" 1봉", "")
+    q = re.sub(r"^각\s*", "", q)
+    parts = [x for x in (s if s in SIZE_WORDS else "", q) if x]
+    if (it.get("price") or 0) > 0:
+        parts.append(won(it["price"]))
+    return " ".join(parts)
+
+
+def compare_note(it):
+    """칸 셋째 줄: 할인 조건과 할인율(포인트 적립 31%, L.POINT 40%, 1+1)"""
+    tag = cond_tag(it)
     deal = (it.get("deal") or "").replace("할인", "").strip()
     pct = ev.discount_pct(it)
     if "%" in deal and len(deal) <= 12:
-        parts.append(deal)
-    elif pct:
-        parts.append(f"{pct:.0f}%")
-    note = ", ".join(parts)
-    if len(note) > 12 and len(parts) > 1:      # 칸이 좁아 두 줄이 되지 않도록, 길면 할인 조건 하나만 남긴다
-        note = parts[-1]
-    return note
+        d = deal
+    elif re.fullmatch(r"\d\s*\+\s*\d", deal):
+        d = deal.replace(" ", "")
+    else:
+        d = f"{pct:.0f}%" if pct else ""
+    if tag and tag not in d:
+        d = f"{tag} {d}".strip()
+    if len(d) > 12:                    # 칸이 좁아 넘치면 조건만 남긴다
+        d = tag or d[:12]
+    return d
 
 
 def compare_context(stores, cfg, today=None, max_rows=8):
@@ -506,7 +534,10 @@ def compare_context(stores, cfg, today=None, max_rows=8):
             if cat.get("per"):
                 v *= cat["per"]
             approx = cat["basis"] == "count" and bool(re.search(r"\d\s*[~\-]\s*\d", it.get("spec") or ""))
-            cells.append({"sid": sid, "v": v, "approx": approx, "note": compare_note(it, cat["basis"], cat.get("unit", ""))})
+            pack = compare_pack(it)
+            if abs((it.get("price") or 0) - v) < 1:      # 전단 가격이 곧 단위 가격이면(100g 1,650원) 같은 숫자를 두 번 쓰지 않는다
+                pack = spec_short(it) if spec_short(it) in SIZE_WORDS else ""
+            cells.append({"sid": sid, "v": v, "approx": approx, "pack": pack, "note": compare_note(it)})
         filled = [c for c in cells if c]
         if len(filled) < 2:
             continue

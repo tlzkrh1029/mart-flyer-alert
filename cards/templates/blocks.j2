@@ -80,7 +80,7 @@
   <td class="k"><b>{{ r.canon }}</b><span>{{ r.unit }}</span></td>
   {% for c in r.cells %}
   {% if c %}
-  <td class="{{ 'best' if c.best }}"><p class="v">{{ c.price }}</p>{% if c.note %}<p class="n">{{ c.note }}</p>{% endif %}</td>
+  <td class="{{ 'best' if c.best }}"><p class="v">{{ c.price }}</p>{% if c.pack %}<p class="n">{{ c.pack }}</p>{% endif %}{% if c.note %}<p class="n c">{{ c.note }}</p>{% endif %}</td>
   {% else %}
   <td class="none">–</td>
   {% endif %}

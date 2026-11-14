@@ -122,6 +122,21 @@ class TestCompare(unittest.TestCase):
         pork = cc["rows"][0]["cells"]
         self.assertIsNone(pork[0])                       # 이마트 전단에는 국산 삼겹살이 없다
         self.assertEqual((pork[1]["price"], pork[2]["price"]), ("1,650원", "2,390원"))   # 냉동 대패·캐나다산은 빠진다
+        self.assertEqual((pork[1]["pack"], pork[1]["note"]), ("", "행사카드 50%"))       # 100g 1,650원은 같은 숫자라 다시 쓰지 않는다
+        # 큰 숫자는 1kg당 가격이고, 아래에 전단의 실제 판매 가격과 할인 조건을 함께 적는다
+        # (예전에는 '3,660원 / 3kg, 31%'만 적어 3kg에 3,660원으로 읽혔다)
+        tang = next(r for r in cc["rows"] if r["canon"] == "감귤")["cells"]
+        self.assertEqual((tang[0]["price"], tang[0]["pack"], tang[0]["note"]), ("3,660원", "3kg 10,980원", "포인트 적립 31%"))
+        self.assertEqual((tang[1]["pack"], tang[1]["note"]), ("2kg 12,990원", ""))
+        chicken = next(r for r in cc["rows"] if r["canon"] == "닭고기")["cells"]
+        self.assertEqual((chicken[1]["pack"], chicken[1]["note"]), ("950g 5,994원", "L.POINT 40%"))
+
+    def test_cond_tag(self):
+        self.assertEqual(C.cond_tag({"cond": "신세계포인트 적립 시"}), "포인트 적립")
+        self.assertEqual(C.cond_tag({"deal": "L.POINT 40%"}), "L.POINT")
+        self.assertEqual(C.cond_tag({"cond": "회원 한정, 1인 최대 2만원 할인"}), "회원")
+        self.assertEqual(C.cond_tag({"cond": "KB국민카드 결제 시"}), "카드 결제")
+        self.assertEqual(C.compare_note({"deal": "1+1", "cond": "행사카드 결제 시"}), "행사카드 1+1")
 
 
 class TestNotify(unittest.TestCase):

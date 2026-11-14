@@ -1,33 +1,35 @@
 {% from "blocks.j2" import crow %}<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><style>{{ css }}
-.page { width: 1080px; {% if fixed %}height: 1350px;{% endif %} padding: 52px 44px 40px; display: flex; flex-direction: column; overflow: hidden; }
+.page { width: 1080px; {% if fixed %}height: 1350px;{% endif %} padding: 48px 44px 32px; display: flex; flex-direction: column; overflow: hidden; }
 .hd { position: relative; padding-right: 110px; }
 .hd h1 { font-size: 60px; }
 .hd2 { position: relative; display: flex; align-items: baseline; gap: 16px; padding-right: 110px; }
 .hd2 .store { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; }
 .hd2 .when { font-size: 28px; font-weight: 600; color: var(--ink2); }
 .pg { position: absolute; top: 0; right: 0; font-size: 28px; font-weight: 700; color: var(--ink3); }
-.headline { margin-top: 14px; font-size: 40px; font-weight: 800; line-height: 1.3; letter-spacing: -0.02em; }
-.cmp { margin: 26px -44px 0; background: var(--label); padding: 0 30px 4px; border-top: 8px solid var(--rail-lip); }
+.headline { margin-top: 8px; font-size: 40px; font-weight: 800; line-height: 1.3; letter-spacing: -0.02em; }
+.cmp { margin: 16px -44px 0; background: var(--label); padding: 0 30px 4px; border-top: 8px solid var(--rail-lip); }
 .cmp table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .cmp col.k { width: 226px; }
-.cmp th { padding: 16px 12px 12px; text-align: right; vertical-align: bottom; border-bottom: 3px solid var(--ink); }
+.cmp th { padding: 10px 12px 8px; text-align: right; vertical-align: bottom; border-bottom: 3px solid var(--ink); }
 .cmp th.k { text-align: left; font-size: 28px; font-weight: 700; color: var(--ink2); }
 .cmp th b { display: block; font-size: 32px; font-weight: 800; }
 .cmp th small { display: block; margin-top: 2px; font-size: 27px; font-weight: 600; color: var(--ink2); }
 .cmp th.top small { color: var(--good); font-weight: 800; }
-.cmp td { padding: 10px 12px 11px; text-align: right; vertical-align: top; border-bottom: 1px solid var(--line); }
+.cmp td { padding: 7px 12px 8px; text-align: right; vertical-align: top; border-bottom: 1px solid var(--line); }
 .cmp td.k { text-align: left; }
 .cmp td.k b { display: block; font-size: 31px; font-weight: 800; line-height: 1.2; letter-spacing: -0.015em; }
 .cmp td.k span { font-size: 26px; color: var(--ink2); }
-.cmp .v { font-size: 33px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1.2; }
-.cmp .n { margin-top: 1px; font-size: 26px; color: var(--ink2); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp .v { font-size: 32px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.cmp .n { margin-top: 0; font-size: 25px; color: var(--ink2); line-height: 1.16; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp .n.c { color: var(--ink); font-weight: 600; }
 .cmp td.best { background: var(--good-bg); }
 .cmp td.best .v { color: var(--good); font-weight: 850; }
 .cmp td.none { color: var(--ink3); font-size: 32px; }
-.legend { margin-top: 10px; display: flex; align-items: center; gap: 12px; font-size: 28px; color: var(--ink2); }
+.key { margin-top: 6px; font-size: 27px; color: var(--ink2); line-height: 1.35; }
+.legend { margin-top: 4px; display: flex; align-items: center; gap: 12px; font-size: 28px; color: var(--ink2); }
 .legend i { width: 34px; height: 26px; background: var(--good-bg); border: 2px solid #BFDCC8; border-radius: 4px; }
-.ft { margin-top: auto; padding-top: 18px; }
+.ft { margin-top: auto; padding-top: 14px; }
 </style></head>
 <body><main class="page">
   {% if first %}
@@ -35,6 +37,7 @@
     <h1>{{ title }}</h1>
     <p class="lede">{{ period }}</p>
     <p class="headline">{{ headline }}</p>
+    <p class="key">큰 숫자는 품목 이름 아래 단위의 가격, 그 아래는 전단에 적힌 판매 가격입니다.</p>
     <p class="legend"><i></i>초록 칸은 가장 싼 매장, 줄표(–)는 전단에 없는 품목입니다.</p>
     {% if total > 1 %}<span class="pg">{{ no }}/{{ total }}</span>{% endif %}
   </header>
