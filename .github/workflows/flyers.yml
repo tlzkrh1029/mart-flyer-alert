@@ -87,7 +87,7 @@ jobs:
           classify_inline_comments: "false"
           claude_args: >-
             --model ${{ vars.CLAUDE_MODEL || 'sonnet' }}
-            --max-turns 200
+            --max-turns 400
             --tools Read
             --allowedTools Read
             --strict-mcp-config
