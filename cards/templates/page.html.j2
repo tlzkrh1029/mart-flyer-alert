@@ -1,0 +1,53 @@
+{% from "blocks.j2" import block %}<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><style>{{ css }}
+/* 4:5 한 장 (1080x1350). 측정할 때는 높이를 풀어 둔다 */
+.page { width: 1080px; {% if fixed %}height: 1350px;{% endif %} padding: 52px 44px 40px; display: flex; flex-direction: column; overflow: hidden; }
+.pg { position: absolute; top: 44px; right: 44px; font-size: 28px; font-weight: 700; color: var(--ink3); font-variant-numeric: tabular-nums; }
+.hd { position: relative; padding-right: 110px; }
+.hd2 { position: relative; display: flex; align-items: baseline; gap: 16px; padding-right: 110px; }
+.hd2 .store { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; }
+.hd2 .when { font-size: 28px; font-weight: 600; color: var(--ink2); }
+.rail { margin-top: 30px; }
+.flow { margin-top: 30px; }
+.flow > .sec:not(:first-child) { margin-top: 34px; }
+.sec { display: flex; justify-content: space-between; }
+.sec span { font-weight: 600; }
+.bhead { position: relative; padding: 6px 220px 22px 0; border-bottom: 3px solid var(--ink); }
+.flow > .bhead:not(:first-child) { margin-top: 40px; }
+.bhead h2 { font-size: 46px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.bhead .blede { margin-top: 10px; font-size: 28px; color: var(--ink2); line-height: 1.4; }
+.bhead .big { position: absolute; top: -4px; right: 4px; font-size: 64px; padding: 14px 22px 16px; transform: rotate(-6deg); }
+.brow { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: center; padding: 15px 0 16px; border-bottom: 1px solid var(--line); }
+.bchip { display: inline-block; vertical-align: 3px; margin-left: 10px; background: var(--sticker); font-size: 26px; font-weight: 850; line-height: 1; padding: 6px 9px 7px; border-radius: 5px; }
+.bn { font-size: 34px; font-weight: 700; line-height: 1.25; letter-spacing: -0.015em; }
+.bm { margin-top: 4px; font-size: 28px; color: var(--ink2); }
+.bp { text-align: right; }
+.bpr { font-size: 34px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bea { margin-top: 2px; font-size: 28px; color: var(--ink2); white-space: nowrap; }
+.ft { margin-top: auto; padding-top: 24px; }
+</style></head>
+<body><main class="page">
+  {% if first %}
+  <header class="hd">
+    <h1>{{ store }}</h1>
+    <p class="period">{{ period }}</p>
+    <p class="lede">{{ lede }}</p>
+    <span class="pg" style="top:14px;right:0">{{ no }}/{{ total }}</span>
+  </header>
+  {% else %}
+  <header class="hd2">
+    <span class="store">{{ store }}</span><span class="when">{{ period }}</span>
+    <span class="pg" style="top:0;right:0">{{ no }}/{{ total }}</span>
+  </header>
+  {% endif %}
+
+  {% for g in groups %}
+  {% if g.container == 'rail' %}
+  <section class="rail">{% for b in g.blocks %}{{ block(b) }}{% endfor %}</section>
+  {% else %}
+  <section class="flow">{% for b in g.blocks %}{{ block(b) }}{% endfor %}</section>
+  {% endif %}
+  {% endfor %}
+
+  {% if last %}<p class="ft">{{ footer }}</p>{% endif %}
+</main></body></html>

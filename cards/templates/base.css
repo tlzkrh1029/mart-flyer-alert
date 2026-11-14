@@ -1,0 +1,102 @@
+@font-face {
+  font-family: "Pretendard";
+  src: url("{{ font_url }}") format("woff2");
+  font-weight: 45 920;
+  font-style: normal;
+}
+
+/* 진열대 가격표 팔레트: 회색 진열대, 흰 가격표, 붉은 행사가, 노란 할인 스티커, 초록 판정 */
+:root {
+  --shelf: #EEF1F4;
+  --rail: #D2D9E0;
+  --rail-lip: #BCC5CE;
+  --label: #FFFFFF;
+  --ink: #1D2228;
+  --ink2: #57606A;
+  --ink3: #78818B;
+  --line: #DCE1E6;
+  --red: #CF2A1F;
+  --sticker: #FFD43B;
+  --good: #12773A;
+  --good-bg: #E4F1E8;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1080px; background: var(--shelf); }
+body {
+  font-family: "Pretendard", sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.card { width: 1080px; padding: 60px 44px 44px; }
+
+/* 머리 */
+.hd h1 { font-size: 66px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.1; }
+.hd .period { margin-top: 14px; font-size: 32px; font-weight: 600; color: var(--ink2); }
+.hd .lede { margin-top: 18px; font-size: 32px; font-weight: 500; line-height: 1.45; }
+
+/* 가격표가 꽂힌 진열대 레일 */
+.rail {
+  margin: 34px -44px 0;
+  padding: 34px 44px 30px;
+  background: var(--rail);
+  border-top: 8px solid var(--rail-lip);
+  display: grid;
+  gap: 22px;
+}
+.tag { position: relative; background: var(--label); border-radius: 8px; }
+.tag-main { display: flex; justify-content: space-between; gap: 24px; padding: 26px 32px 22px; }
+.tag-left { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tag .origin { font-size: 30px; font-weight: 600; color: var(--ink2); }
+.tag .name { margin-top: 6px; font-size: 42px; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
+.tag .cond { margin-top: auto; padding-top: 14px; font-size: 30px; font-weight: 500; color: var(--ink2); line-height: 1.4; }
+.tag-right { flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; text-align: right; }
+.tag .price {
+  font-size: 108px; font-weight: 850; color: var(--red);
+  letter-spacing: -0.035em; line-height: 0.95; white-space: nowrap;
+}
+.tag .price .u { font-size: 46px; font-weight: 800; margin-left: 4px; letter-spacing: 0; }
+.tag .price.alt { font-size: 92px; }
+.tag .subline { margin-top: 10px; font-size: 30px; font-weight: 600; color: var(--ink2); white-space: nowrap; }
+.tag .subline s { color: var(--ink3); font-weight: 500; margin-right: 12px; }
+
+/* 노란 할인 스티커: 이 디자인에서 유일하게 튀는 요소 */
+.sticker {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  background: var(--sticker); color: var(--ink);
+  font-size: 40px; font-weight: 850; line-height: 1;
+  padding: 10px 16px 11px; border-radius: 6px;
+  transform: rotate(-4deg);
+  box-shadow: 0 3px 0 rgba(29, 34, 40, 0.16);
+  white-space: nowrap;
+}
+.sticker small { font-size: 24px; font-weight: 700; }
+.tag .sticker { margin-top: -50px; margin-bottom: 14px; }
+
+.verdict {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 32px 16px; border-top: 1px solid var(--line);
+  font-size: 30px; font-weight: 600; color: var(--good);
+}
+.tag.great .verdict { background: var(--good-bg); border-radius: 0 0 8px 8px; border-top-color: transparent; }
+.verdict b { font-weight: 800; }
+.verdict .crit { color: var(--ink2); font-weight: 500; margin-left: 6px; }
+.icon { width: 30px; height: 30px; flex: none; }
+
+/* 나머지 품목 */
+.others { margin-top: 36px; }
+.sec { font-size: 30px; font-weight: 800; color: var(--ink2); padding-bottom: 12px; border-bottom: 3px solid var(--ink); }
+.row { display: grid; grid-template-columns: 116px 1fr auto; gap: 18px; padding: 20px 0 22px; border-bottom: 1px solid var(--line); }
+.row .cat { font-size: 30px; font-weight: 700; color: var(--ink2); padding-top: 5px; }
+.row .nm { font-size: 36px; font-weight: 700; line-height: 1.25; display: flex; align-items: center; gap: 10px; }
+.row .nm .icon { width: 28px; height: 28px; }
+.row .meta { margin-top: 6px; font-size: 30px; color: var(--ink2); line-height: 1.38; }
+.row .rp { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.row .p small { font-size: 30px; font-weight: 700; color: var(--ink2); }
+.row .p { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.1; }
+.row .chip { display: inline-block; font-size: 26px; font-weight: 800; background: var(--sticker); padding: 3px 10px 4px; border-radius: 4px; white-space: nowrap; }
+.row .uu { font-size: 30px; color: var(--ink2); white-space: nowrap; }
+
+.ft { margin-top: 28px; font-size: 28px; color: var(--ink3); line-height: 1.5; }

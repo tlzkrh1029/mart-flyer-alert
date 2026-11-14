@@ -1,0 +1,216 @@
+{
+  "_설명": "목요일 매장 비교 카드에 넣을 품목. 위에서부터 관심 순서이고, 두 매장 이상 전단에 나온 품목만 최대 max_rows 줄을 쓴다. match 는 criteria.json 의 규칙과 같은 방식(cat, origin, storage, name_any, name_none, name_re, no_seasoned)으로 품목을 고르고, 매장마다 basis 단위 가격이 가장 싼 것을 쓴다. per 는 표시 단위를 바꿀 때 곱하는 값(쌀 1kg당 → 10kg).",
+  "schedule": {
+    "weekday": 3,
+    "after_hour": 17
+  },
+  "max_rows": 8,
+  "stores": [
+    {
+      "id": "emart_pyeongchon",
+      "name": "이마트"
+    },
+    {
+      "id": "lotte_uiwang",
+      "name": "롯데마트"
+    },
+    {
+      "id": "kims_pyeongchon",
+      "name": "킴스클럽"
+    }
+  ],
+  "items": [
+    {
+      "label": "국산 삼겹살·목심",
+      "unit": "100g당",
+      "basis": "100g",
+      "match": {
+        "cat": "돼지고기",
+        "origin": "domestic",
+        "storage": [
+          "냉장",
+          "모름"
+        ],
+        "no_seasoned": true,
+        "name_any": [
+          "삼겹",
+          "목심",
+          "목살"
+        ],
+        "name_none": [
+          "대패",
+          "훈제"
+        ]
+      }
+    },
+    {
+      "label": "국산 앞다리",
+      "unit": "100g당",
+      "basis": "100g",
+      "match": {
+        "cat": "돼지고기",
+        "origin": "domestic",
+        "storage": [
+          "냉장",
+          "모름"
+        ],
+        "no_seasoned": true,
+        "name_any": [
+          "앞다리",
+          "뒷다리"
+        ]
+      }
+    },
+    {
+      "label": "한우 국거리·불고기",
+      "unit": "100g당",
+      "basis": "100g",
+      "match": {
+        "cat": "소고기",
+        "name_any": [
+          "한우"
+        ],
+        "name_re": "국거리|불고기",
+        "no_seasoned": true
+      }
+    },
+    {
+      "label": "닭고기",
+      "unit": "1kg당",
+      "basis": "kg",
+      "match": {
+        "cat": "닭고기",
+        "no_seasoned": true,
+        "name_none": [
+          "치킨",
+          "너겟",
+          "훈제",
+          "가슴살 스테이크",
+          "튀김"
+        ]
+      }
+    },
+    {
+      "label": "오징어",
+      "unit": "1마리",
+      "basis": "count",
+      "count_units": [
+        "마리",
+        "미"
+      ],
+      "match": {
+        "cat": "오징어",
+        "name_none": [
+          "진미",
+          "채",
+          "젓"
+        ]
+      }
+    },
+    {
+      "label": "두부",
+      "unit": "100g당",
+      "basis": "100g",
+      "match": {
+        "cat": "두부"
+      }
+    },
+    {
+      "label": "계란",
+      "unit": "1개",
+      "basis": "count",
+      "match": {
+        "cat": "계란"
+      }
+    },
+    {
+      "label": "사과",
+      "unit": "1개",
+      "basis": "count",
+      "count_units": [
+        "개",
+        "입",
+        "과"
+      ],
+      "match": {
+        "cat": "과일",
+        "name_any": [
+          "사과"
+        ],
+        "name_none": [
+          "주스",
+          "즙",
+          "칩"
+        ]
+      }
+    },
+    {
+      "label": "감귤",
+      "unit": "1kg당",
+      "basis": "kg",
+      "match": {
+        "cat": "과일",
+        "name_any": [
+          "귤"
+        ]
+      }
+    },
+    {
+      "label": "바나나",
+      "unit": "100g당",
+      "basis": "100g",
+      "match": {
+        "cat": "과일",
+        "name_any": [
+          "바나나"
+        ]
+      }
+    },
+    {
+      "label": "양파",
+      "unit": "1kg당",
+      "basis": "kg",
+      "match": {
+        "cat": "채소",
+        "name_re": "(^|\\s)양파"
+      }
+    },
+    {
+      "label": "쌀",
+      "unit": "10kg",
+      "basis": "kg",
+      "per": 10,
+      "match": {
+        "cat": "쌀"
+      }
+    },
+    {
+      "label": "배추",
+      "unit": "1포기",
+      "basis": "count",
+      "match": {
+        "cat": "채소",
+        "name_any": [
+          "배추"
+        ],
+        "name_none": [
+          "절임",
+          "김치",
+          "알배기",
+          "봄동"
+        ]
+      }
+    },
+    {
+      "label": "깐마늘",
+      "unit": "1kg당",
+      "basis": "kg",
+      "match": {
+        "cat": "채소",
+        "name_any": [
+          "깐마늘"
+        ]
+      }
+    }
+  ]
+}

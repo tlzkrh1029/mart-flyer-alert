@@ -7,6 +7,7 @@
   config/criteria.json   : 알림 기준
 쓰는 것
   work/messages.json     : 보낼 메시지 목록(전단 하나에 메시지 하나)
+  work/cards.json        : 카드 이미지를 그릴 재료(cards/render.py 가 읽는다). msg 는 messages.json 의 순번
   state/history/YYYY-MM/ : 전단별로 옮겨 적은 품목과 판정(나중에 우리 동네 가격 기준을 다시 잡을 때 쓴다)
   state/seen.json        : 처리한 전단 표시. 판독에 실패하면 표시하지 않아 다음 실행이 다시 읽고,
                            같은 전단을 두 번 실패하면 표시하고 '직접 확인' 메시지를 보낸다
@@ -307,7 +308,7 @@ def main():
         print(f"::warning::no usable Claude output (step outcome: {os.environ.get('CLAUDE_CONCLUSION', '?')})")
     by_key = {f.get("key"): f for f in (out or {}).get("flyers", []) if isinstance(f, dict)}
 
-    messages, summary = [], []
+    messages, summary, cards = [], [], []
     today = time.strftime("%Y%m%d")
     for flyer in manifest.get("flyers", []):
         res = by_key.get(flyer["key"])
@@ -323,6 +324,8 @@ def main():
         items = dedupe([i for i in res.get("items", []) if isinstance(i, dict)])
         hits, bogos = evaluate(items, criteria)
         msg = build_message(flyer, hits, bogos, res.get("unread") or [])
+        cards.append({"msg": len(messages), "flyer": {k: v for k, v in flyer.items() if k not in ("images", "text")},
+                      "items": items, "unread": res.get("unread") or []})
         messages.append(msg)
         summary.append(f"### {flyer['store_name']}\n\n품목 {len(items)} · 알림 {len(hits)} · 1+1 {len(bogos)}\n\n```\n{msg}\n```\n")
         if not args.no_state:
@@ -332,6 +335,7 @@ def main():
             mark_done(seen, flyer)
 
     save_json(os.path.join(WORK, "messages.json"), messages)
+    save_json(os.path.join(WORK, "cards.json"), cards)
     if not args.no_state:
         save_json(seen_path, seen)
     for m in messages:

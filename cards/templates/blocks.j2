@@ -1,0 +1,98 @@
+{% from "macros.j2" import icon, sticker %}
+
+{# 큰 가격표 (요약 카드 첫 장) #}
+{% macro hero(h) -%}
+<article class="tag {{ h.v.level }}">
+  <div class="tag-main">
+    <div class="tag-left">
+      {% if h.sub %}<p class="origin">{{ h.sub }}</p>{% endif %}
+      <h2 class="name">{{ h.label_name }}</h2>
+      {% if h.cond_lines %}<p class="cond">{% for c in h.cond_lines %}{{ c }}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>{% endif %}
+    </div>
+    <div class="tag-right">
+      {{ sticker(h.sticker) }}
+      {% if h.price_num %}
+      <p class="price">{{ h.price_num }}<span class="u">원</span></p>
+      {% else %}
+      <p class="price alt">{{ h.alt_big }}</p>
+      {% endif %}
+      <p class="subline">{% if h.regular_txt %}<s>{{ h.regular_txt }}</s>{% endif %}{{ h.unit_line }}</p>
+    </div>
+  </div>
+  <p class="verdict">{{ icon(h.v.level) }}<b>{{ h.v.head }}</b><span class="crit">{{ h.v.crit }}</span></p>
+</article>
+{%- endmacro %}
+
+{# 나머지 품목 한 줄 #}
+{% macro row(r) -%}
+<div class="row">
+  <span class="cat">{{ r.cat }}</span>
+  <div>
+    {% if r.group %}
+    <p class="nm">{{ icon(r.level, 28) }}{{ r.name }}</p>
+    <p class="meta">{{ r.meta }}</p>
+    {% if r.cond %}<p class="meta">{{ r.cond }}</p>{% endif %}
+    {% else %}
+    <p class="nm">{{ icon(r.v.level, 28) }}{{ r.label_name }}</p>
+    {% set m = [] %}
+    {% if r.sub %}{% set _ = m.append(r.sub) %}{% endif %}
+    {% for c in r.cond_lines %}{% set _ = m.append(c) %}{% endfor %}
+    {% if r.deal_note %}{% set _ = m.append(r.deal_note) %}{% endif %}
+    {% if m %}<p class="meta">{{ m | join(', ') }}</p>{% endif %}
+    {% endif %}
+  </div>
+  <div class="rp">
+    {% if not r.group %}
+      {% if r.price_num %}<span class="p">{% if r.per100 %}<small>100g당</small> {% endif %}{{ r.price_num }}원</span>{% endif %}
+      {% if r.alt_big %}<span class="chip">{{ r.alt_big }}</span>{% elif r.sticker %}<span class="chip">{{ r.sticker.big }}{% if r.sticker.small %} {{ r.sticker.small }}{% endif %}</span>{% endif %}
+      {% if r.unit_line and not r.per100 and r.unit_line != r.qty %}<span class="uu">{{ r.unit_line }}</span>{% endif %}
+    {% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+{# 1+1·2+1 구역 머리 #}
+{% macro bogo_head(b) -%}
+<div class="bhead">
+  <h2>{{ b.title_deal }} 행사 {{ b.count }}개</h2>
+  <p class="blede">{{ b.lede }}</p>
+  <span class="sticker big">1+1</span>
+</div>
+{%- endmacro %}
+
+{# 1+1 한 줄 #}
+{% macro brow(r) -%}
+<div class="brow">
+  <div>
+    <p class="bn">{{ r.name }}{% if r.deal != '1+1' %}<span class="bchip">{{ r.deal }}</span>{% endif %}</p>
+    {% if r.meta %}<p class="bm">{{ r.meta }}</p>{% endif %}
+  </div>
+  <div class="bp">
+    {% if r.price %}<p class="bpr">{{ r.price }}</p>{% endif %}
+    <p class="bea">{{ r.each }}</p>
+  </div>
+</div>
+{%- endmacro %}
+
+{# 매장 비교 표 한 줄 #}
+{% macro crow(r) -%}
+<tr>
+  <td class="k"><b>{{ r.canon }}</b><span>{{ r.unit }}</span></td>
+  {% for c in r.cells %}
+  {% if c %}
+  <td class="{{ 'best' if c.best }}"><p class="v">{{ c.price }}</p>{% if c.note %}<p class="n">{{ c.note }}</p>{% endif %}</td>
+  {% else %}
+  <td class="none">–</td>
+  {% endif %}
+  {% endfor %}
+</tr>
+{%- endmacro %}
+
+{% macro block(b) -%}
+{%- if b.k == 'hero' %}{{ hero(b.d) }}
+{%- elif b.k == 'sec' %}<h3 class="sec">{{ b.title }}{% if b.count %}<span>{{ b.count }}</span>{% endif %}</h3>
+{%- elif b.k == 'row' %}{{ row(b.d) }}
+{%- elif b.k == 'bogo_head' %}{{ bogo_head(b.d) }}
+{%- elif b.k == 'brow' %}{{ brow(b.d) }}
+{%- endif -%}
+{%- endmacro %}

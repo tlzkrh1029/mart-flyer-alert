@@ -5,7 +5,10 @@ name: flyers
 #   1) scripts/fetch_flyers.py : 카카오톡 채널(이마트·롯데마트 전국 공통 전단, 킴스클럽)에서 새 전단을 찾아 이미지를 내려받고 나눈다
 #   2) Claude 전단 판독        : Read 도구 하나만 쓰고, 품목을 구조화된 출력(JSON)으로만 돌려준다(prompts/extract.md, prompts/schema.json)
 #   3) scripts/evaluate.py     : 기준 판정 → 메시지 작성, 처리한 전단을 state/seen.json 에 표시, 품목 기록을 state/history 에 남긴다
-#   4) scripts/notify_telegram.py → 상태 커밋
+#   4) cards/render.py         : 판정 결과로 1080x1350 카드 이미지(요약·1+1 목록·⭐ 품목이 실린 전단 원본)를 만든다
+#   5) cards/render.py --compare : 목요일 저녁(못 보내면 그 주 일요일까지)에 세 매장 비교 카드를 만든다
+#   6) scripts/notify_telegram.py : 매장마다 앨범(설명 글 포함)을 보내고 이어서 텍스트 메시지를 보낸다 → 상태 커밋
+# 카드 단계가 실패해도 텍스트 메시지는 그대로 보낸다.
 # Claude 단계가 실패하면 그 전단은 표시하지 않아 다음 실행이 다시 읽는다. 같은 전단을 두 번 실패하면 '직접 확인' 메시지를 보내고 넘어간다.
 on:
   schedule:
@@ -21,6 +24,10 @@ on:
         default: ""
       dry_run:
         description: "텔레그램으로 보내지 않고 실행 요약(Summary)에만 남긴다. 상태도 저장하지 않는다"
+        type: boolean
+        default: false
+      compare:
+        description: "요일과 이번 주 발송 여부에 상관없이 매장 비교 카드를 만들어 보낸다"
         type: boolean
         default: false
 
@@ -45,7 +52,10 @@ jobs:
           python-version: "3.12"
 
       - name: 준비
-        run: pip install --quiet pillow
+        run: |
+          pip install --quiet pillow jinja2 playwright
+          # 카드는 러너에 깔린 Google Chrome 으로 찍는다. 없으면 Playwright 의 Chromium 을 받는다
+          command -v google-chrome >/dev/null || python -m playwright install --with-deps chromium
 
       - name: 새 전단 확인·이미지 준비
         id: fetch
@@ -92,16 +102,45 @@ jobs:
           NO_STATE: ${{ inputs.dry_run == true && '--no-state' || '' }}
         run: python scripts/evaluate.py $NO_STATE
 
-      - name: 텔레그램 발송
+      - name: 카드 이미지 만들기
+        id: cards
         if: steps.fetch.outputs.new == 'true'
+        continue-on-error: true
+        run: python cards/render.py
+
+      - name: 매장 비교 카드
+        id: compare
+        continue-on-error: true
+        env:
+          HAS_TG: ${{ secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != '' }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+          FORCE_COMPARE: ${{ inputs.compare == true && '--force' || '' }}
+        run: |
+          if [ "$HAS_TG" != "true" ] && [ -z "$DRY_RUN" ]; then
+            echo "TELEGRAM secrets not set; skipping compare card"
+            exit 0
+          fi
+          python cards/render.py --compare $FORCE_COMPARE
+
+      - name: 텔레그램 발송
+        if: steps.fetch.outputs.new == 'true' || steps.compare.outputs.ready == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
         run: python scripts/notify_telegram.py
 
+      - name: 카드 이미지 보관(7일)
+        if: steps.cards.outcome == 'success' || steps.compare.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cards
+          path: work/cards/**/*.png
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: 상태 커밋
-        if: steps.fetch.outputs.new == 'true' && inputs.dry_run != true
+        if: (steps.fetch.outputs.new == 'true' || steps.compare.outputs.ready == 'true') && inputs.dry_run != true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

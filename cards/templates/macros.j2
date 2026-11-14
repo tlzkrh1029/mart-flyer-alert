@@ -1,0 +1,11 @@
+{% macro icon(level, size=30) -%}
+{%- if level == 'great' -%}
+<svg class="icon" viewBox="0 0 24 24" width="{{ size }}" height="{{ size }}" aria-hidden="true"><path fill="#12773A" d="M12 2.6l2.82 5.92 6.48.82-4.77 4.48 1.21 6.43L12 17.1l-5.74 3.15 1.21-6.43L2.7 9.34l6.48-.82z"/></svg>
+{%- else -%}
+<svg class="icon" viewBox="0 0 24 24" width="{{ size }}" height="{{ size }}" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#12773A"/><path d="M7.2 12.4l3.1 3.1 6.5-6.7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro sticker(s) -%}
+{%- if s %}<span class="sticker">{{ s.big }}{% if s.small %}<small>{{ s.small }}</small>{% endif %}</span>{% endif -%}
+{%- endmacro %}
