@@ -49,7 +49,16 @@ jobs:
         id: fetch
         env:
           FORCE: ${{ inputs.force }}
+          HAS_TOKEN: ${{ secrets.CLAUDE_SETUP_TOKEN != '' }}
+          HAS_TG: ${{ secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != '' }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
         run: |
+          # 비밀값이 없을 때 돌면 판독 실패가 쌓이거나 보내지 못한 전단이 처리된 것으로 표시되므로, 아무것도 하지 않고 넘어간다
+          if [ "$HAS_TOKEN" != "true" ] || { [ "$HAS_TG" != "true" ] && [ -z "$DRY_RUN" ]; }; then
+            echo "::warning::CLAUDE_SETUP_TOKEN / TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; skipping this run"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           python scripts/fetch_flyers.py --force "$FORCE"
           echo "schema=$(python -c 'import json;print(json.dumps(json.load(open("prompts/schema.json")),ensure_ascii=False,separators=(",",":")))')" >> "$GITHUB_OUTPUT"
 
