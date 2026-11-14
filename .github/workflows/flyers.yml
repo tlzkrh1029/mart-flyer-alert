@@ -1,0 +1,103 @@
+name: flyers
+
+# 매일 두 번 새 전단을 확인한다. 새 전단이 있을 때만 Claude(구독 토큰 CLAUDE_SETUP_TOKEN)가 이미지를 읽고,
+# config/criteria.json 기준에 맞는 품목과 1+1 을 텔레그램으로 보낸다. 새 전단이 없으면 Claude 단계를 건너뛰므로 구독 사용량을 쓰지 않는다.
+#   1) scripts/fetch_flyers.py : 마트몬(이마트 평촌·롯데마트 의왕·홈플러스 평촌)과 킴스클럽 카카오톡 채널에서 새 전단을 찾아 이미지를 내려받고 나눈다
+#   2) Claude 전단 판독        : Read 도구 하나만 쓰고, 품목을 구조화된 출력(JSON)으로만 돌려준다(prompts/extract.md, prompts/schema.json)
+#   3) scripts/evaluate.py     : 기준 판정 → 메시지 작성, 처리한 전단을 state/seen.json 에 표시, 품목 기록을 state/history 에 남긴다
+#   4) scripts/notify_telegram.py → 상태 커밋
+# Claude 단계가 실패하면 그 전단은 표시하지 않아 다음 실행이 다시 읽는다. 같은 전단을 두 번 실패하면 '직접 확인' 메시지를 보내고 넘어간다.
+on:
+  schedule:
+    - cron: "30 8 * * *"      # 매일 08:30 KST (GitHub 예약 실행은 늦게 시작하곤 한다)
+      timezone: "Asia/Seoul"
+    - cron: "30 18 * * *"     # 매일 18:30 KST
+      timezone: "Asia/Seoul"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "이미 처리한 전단도 다시 읽을 매장 id(쉼표로 구분: emart_pyeongchon, lotte_uiwang, homeplus_pyeongchon, kims_pyeongchon) 또는 all"
+        type: string
+        default: ""
+      dry_run:
+        description: "텔레그램으로 보내지 않고 실행 요약(Summary)에만 남긴다. 상태도 저장하지 않는다"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flyers
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: 준비
+        run: pip install --quiet pillow
+
+      - name: 새 전단 확인·이미지 준비
+        id: fetch
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          python scripts/fetch_flyers.py --force "$FORCE"
+          echo "schema=$(python -c 'import json;print(json.dumps(json.load(open("prompts/schema.json")),ensure_ascii=False,separators=(",",":")))')" >> "$GITHUB_OUTPUT"
+
+      - name: Claude 전단 판독
+        id: claude
+        if: steps.fetch.outputs.new == 'true'
+        continue-on-error: true
+        timeout-minutes: 35
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_SETUP_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: "작업 지시는 ${{ github.workspace }}/prompts/extract.md 에 있습니다. Read 도구로 그 파일을 먼저 읽고, 지시대로 ${{ github.workspace }}/work/manifest.json 의 전단 이미지를 모두 읽은 뒤 구조화된 출력으로 답하세요."
+          classify_inline_comments: "false"
+          claude_args: >-
+            --model ${{ vars.CLAUDE_MODEL || 'sonnet' }}
+            --max-turns 200
+            --tools Read
+            --allowedTools Read
+            --strict-mcp-config
+            --setting-sources user
+            --json-schema '${{ steps.fetch.outputs.schema }}'
+
+      - name: 기준 판정·메시지 작성
+        if: steps.fetch.outputs.new == 'true'
+        env:
+          CLAUDE_OUT: ${{ steps.claude.outputs.structured_output }}
+          CLAUDE_CONCLUSION: ${{ steps.claude.outcome }}
+          NO_STATE: ${{ inputs.dry_run == true && '--no-state' || '' }}
+        run: python scripts/evaluate.py $NO_STATE
+
+      - name: 텔레그램 발송
+        if: steps.fetch.outputs.new == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+        run: python scripts/notify_telegram.py
+
+      - name: 상태 커밋
+        if: steps.fetch.outputs.new == 'true' && inputs.dry_run != true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "flyers $(TZ=Asia/Seoul date +%F)"
+            git push || { git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push; }
+          fi

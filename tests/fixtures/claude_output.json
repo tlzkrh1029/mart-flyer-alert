@@ -1,0 +1,277 @@
+{
+ "flyers": [
+  {
+   "key": "emart_pyeongchon-abc123",
+   "items": [
+    {
+     "name": "프라임 척아이롤",
+     "cat": "소고기",
+     "origin": "미국산",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "100g/냉장, 미국산소고기",
+     "grams": 100,
+     "price": 2988,
+     "regular": 4980,
+     "deal": "40%",
+     "cond": "신세계포인트 적립 시",
+     "period": "11/12~11/15",
+     "img": "p02_b"
+    },
+    {
+     "name": "호주산 찜갈비",
+     "cat": "소고기",
+     "origin": "호주산",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "100g/냉장, 호주산 소고기",
+     "grams": 100,
+     "price": 2690,
+     "regular": 5380,
+     "deal": "50%",
+     "cond": "신세계포인트 적립 시",
+     "period": "11/12~11/15",
+     "img": "p02_b"
+    },
+    {
+     "name": "냉동 척아이롤 샤브샤브",
+     "cat": "소고기",
+     "origin": "미국산",
+     "storage": "냉동",
+     "seasoned": false,
+     "spec": "500g/팩, 미국산 소고기",
+     "grams": 500,
+     "price": 11980,
+     "regular": 16980,
+     "deal": "5천원 할인",
+     "cond": "신세계포인트 적립 시",
+     "img": "p02_b"
+    },
+    {
+     "name": "호주 냉장 앞다리 국거리",
+     "cat": "소고기",
+     "origin": "호주산",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "100g/냉장, 호주산소고기",
+     "grams": 100,
+     "price": 2380,
+     "img": "p12_a"
+    },
+    {
+     "name": "양념 안창살 소불고기",
+     "cat": "소고기",
+     "origin": "별도표기",
+     "storage": "냉장",
+     "seasoned": true,
+     "spec": "600g/팩",
+     "grams": 600,
+     "price": 12980,
+     "regular": 19980,
+     "deal": "7천원 할인",
+     "cond": "신세계포인트 적립 시",
+     "img": "p05_b"
+    },
+    {
+     "name": "브랜드한우 전품목",
+     "cat": "소고기",
+     "origin": "국내산",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "냉장, 국내산",
+     "price": 0,
+     "pct": 40,
+     "deal": "등심 40%·등심 외 30% 할인",
+     "cond": "신세계포인트 적립 시",
+     "img": "p02_b"
+    },
+    {
+     "name": "한우 헤비스테이크 3종",
+     "cat": "소고기",
+     "origin": "국내산",
+     "storage": "냉장",
+     "seasoned": false,
+     "price": 0,
+     "pct": 30,
+     "cond": "신세계포인트 적립 시",
+     "img": "p02_b"
+    },
+    {
+     "name": "국내산 앞다리",
+     "cat": "돼지고기",
+     "origin": "국내산",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "100g/냉장",
+     "grams": 100,
+     "price": 1260,
+     "img": "p05_a"
+    },
+    {
+     "name": "제철맞은 방어회",
+     "cat": "수산",
+     "origin": "국내산",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "240g/팩",
+     "grams": 240,
+     "price": 25870,
+     "regular": 39800,
+     "img": "p01_b"
+    },
+    {
+     "name": "팬시 엔비사과",
+     "cat": "과일",
+     "origin": "국내산",
+     "storage": "상온",
+     "seasoned": false,
+     "spec": "5~9입/봉",
+     "count": 7,
+     "count_unit": "개",
+     "price": 9980,
+     "regular": 12980,
+     "deal": "3천원 할인",
+     "cond": "신세계포인트 적립 시",
+     "img": "p01_b"
+    },
+    {
+     "name": "한돈 삼겹살",
+     "cat": "돼지고기",
+     "origin": "국내산",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "100g",
+     "grams": 100,
+     "price": 1880,
+     "img": "x"
+    },
+    {
+     "name": "백숙용 생닭",
+     "cat": "닭고기",
+     "origin": "국내산",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "1kg",
+     "grams": 1000,
+     "price": 3980,
+     "regular": 6980,
+     "img": "x"
+    },
+    {
+     "name": "풀무원 부침두부",
+     "cat": "두부",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "300g",
+     "grams": 300,
+     "price": 2980,
+     "deal": "1+1",
+     "img": "x"
+    },
+    {
+     "name": "선동오징어",
+     "cat": "오징어",
+     "origin": "원양산",
+     "storage": "냉동",
+     "seasoned": false,
+     "spec": "5미",
+     "count": 5,
+     "count_unit": "마리",
+     "price": 9900,
+     "img": "text"
+    },
+    {
+     "name": "동물복지 계란",
+     "cat": "계란",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "30구",
+     "count": 30,
+     "count_unit": "구",
+     "price": 6480,
+     "img": "x"
+    },
+    {
+     "name": "바나나",
+     "cat": "과일",
+     "origin": "필리핀산",
+     "storage": "상온",
+     "seasoned": false,
+     "spec": "1송이",
+     "count": 1,
+     "count_unit": "송이",
+     "price": 2990,
+     "img": "x"
+    },
+    {
+     "name": "키친타월",
+     "cat": "생필품",
+     "storage": "상온",
+     "seasoned": false,
+     "spec": "6롤",
+     "price": 8900,
+     "deal": "1+1",
+     "img": "x"
+    },
+    {
+     "name": "감자칩",
+     "cat": "가공식품",
+     "storage": "상온",
+     "seasoned": false,
+     "price": 2500,
+     "deal": "1+1",
+     "img": "x"
+    },
+    {
+     "name": "비비고 왕교자",
+     "cat": "가공식품",
+     "storage": "냉동",
+     "seasoned": false,
+     "spec": "1.05kg",
+     "price": 10980,
+     "deal": "1+1",
+     "img": "x"
+    },
+    {
+     "name": "제주 무",
+     "cat": "채소",
+     "origin": "국내산",
+     "storage": "상온",
+     "seasoned": false,
+     "spec": "1개",
+     "count": 1,
+     "count_unit": "개",
+     "price": 990,
+     "img": "x"
+    },
+    {
+     "name": "대파",
+     "cat": "채소",
+     "origin": "국내산",
+     "storage": "상온",
+     "seasoned": false,
+     "spec": "1단",
+     "count": 1,
+     "count_unit": "단",
+     "price": 1980,
+     "img": "x"
+    },
+    {
+     "name": "프라임 척아이롤",
+     "cat": "소고기",
+     "origin": "미국산",
+     "storage": "냉장",
+     "seasoned": false,
+     "spec": "100g",
+     "grams": 100,
+     "price": 2988,
+     "regular": 4980,
+     "img": "p02_c"
+    }
+   ],
+   "unread": [
+    "p07_a: 하단 흐림"
+   ]
+  }
+ ]
+}

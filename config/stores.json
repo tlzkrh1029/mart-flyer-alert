@@ -1,0 +1,35 @@
+{
+  "_comment": "전단을 확인할 매장. source=martmonster 는 마트몬 매장 페이지(검색 파라미터 없는 주소만 씀, robots.txt 허용), source=kakao 는 카카오톡 채널 게시물(JSON)이다.",
+  "stores": [
+    {
+      "id": "emart_pyeongchon",
+      "name": "이마트 평촌점",
+      "source": "martmonster",
+      "url": "https://martmonster.com/gyeonggi/3695",
+      "msg_note": "이마트 전단은 전국 공통이고 가격은 은평점 기준입니다."
+    },
+    {
+      "id": "lotte_uiwang",
+      "name": "롯데마트 의왕점",
+      "source": "martmonster",
+      "url": "https://martmonster.com/gyeonggi/4039"
+    },
+    {
+      "id": "homeplus_pyeongchon",
+      "name": "홈플러스 평촌점",
+      "source": "martmonster",
+      "url": "https://martmonster.com/gyeonggi/4892"
+    },
+    {
+      "id": "kims_pyeongchon",
+      "name": "킴스클럽 평촌점",
+      "source": "kakao",
+      "channel": "_SBXxmxd",
+      "url": "https://pf.kakao.com/_SBXxmxd/posts",
+      "branch_keyword": "평촌",
+      "min_images": 3,
+      "max_age_days": 8,
+      "_comment": "전국 공통 전단과 일부 매장 한정 행사(N개점)가 섞여 올라온다. 'N개점' 행사는 본문에 평촌이 있을 때만 쓴다"
+    }
+  ]
+}

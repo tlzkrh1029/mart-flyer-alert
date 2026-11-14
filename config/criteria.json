@@ -1,0 +1,51 @@
+{
+  "_comment": [
+    "알림 기준. 규칙은 위에서부터 차례로 맞춰 보고, 처음 맞는 규칙 하나로만 판정한다.",
+    "basis: 100g(100g당 가격) · kg(1kg당 가격) · count(개수당 가격, count_units 로 단위 제한). ok 이하이면 알림, great 이하이면 ⭐.",
+    "min_pct / great_pct: 할인율(%) 기준. basis 기준과 함께 있으면 둘 중 하나만 맞아도 알림이다.",
+    "origin: domestic(국내산·한우·한돈) · import(수입). 원산지를 알 수 없는 품목은 origin 이 있는 규칙에 맞지 않는다.",
+    "no_seasoned: 양념육·훈제·가공품은 이 규칙에서 뺀다(양념 무게가 들어가 100g당 가격이 싸 보이기 때문).",
+    "1+1·2+1 은 실제 단가(1+1 은 절반, 2+1 은 3분의 2)로 계산한다.",
+    "기준가는 2026-11 KAMIS·축산물품질평가원 소매가격(평균보다 약 20~30% 싼 수준)으로 잡았다."
+  ],
+  "bogo": {
+    "_comment": "1+1·2+1 묶음 알림 대상: 냉장·냉동 식품, 신선식품 분류, 생필품",
+    "storage": ["냉장", "냉동"],
+    "categories": ["소고기", "돼지고기", "닭고기", "두부", "오징어", "수산", "채소", "과일", "계란", "우유", "쌀", "생필품"]
+  },
+  "rules": [
+    {"label": "한우 등심·채끝", "cat": "소고기", "origin": "domestic", "name_any": ["등심", "채끝"], "basis": "100g", "ok": 8500, "great": 7500},
+    {"label": "한우 양지", "cat": "소고기", "origin": "domestic", "name_any": ["양지"], "basis": "100g", "ok": 4500, "great": 4000},
+    {"label": "한우 국거리·불고기", "cat": "소고기", "origin": "domestic", "name_any": ["국거리", "불고기", "산적", "장조림"], "no_seasoned": true, "basis": "100g", "ok": 3400, "great": 3000},
+    {"label": "한우 기타", "cat": "소고기", "origin": "domestic", "no_seasoned": true, "min_pct": 40, "great_pct": 50},
+    {"label": "수입 갈비살", "cat": "소고기", "origin": "import", "name_any": ["갈비살", "갈빗살"], "no_seasoned": true, "basis": "100g", "ok": 4000, "great": 3500},
+    {"label": "수입 갈비·찜갈비", "cat": "소고기", "origin": "import", "name_any": ["갈비"], "no_seasoned": true, "basis": "100g", "ok": 3000, "great": 2500},
+    {"label": "수입 소고기(냉장)", "cat": "소고기", "origin": "import", "storage": ["냉장"], "no_seasoned": true, "basis": "100g", "ok": 3500, "great": 3000},
+
+    {"label": "국산 앞다리·뒷다리", "cat": "돼지고기", "origin": "domestic", "name_any": ["앞다리", "뒷다리", "전지", "후지"], "no_seasoned": true, "basis": "100g", "ok": 1200, "great": 1000},
+    {"label": "국산 삼겹살·목심", "cat": "돼지고기", "origin": "domestic", "name_any": ["삼겹", "목심", "목살", "오겹"], "no_seasoned": true, "basis": "100g", "ok": 2200, "great": 1900},
+    {"label": "수입 삼겹살·목심", "cat": "돼지고기", "origin": "import", "name_any": ["삼겹", "목심", "목살"], "no_seasoned": true, "basis": "100g", "ok": 1100, "great": 990},
+
+    {"label": "닭고기", "cat": "닭고기", "no_seasoned": true, "name_none": ["치킨", "너겟", "훈제", "강정", "가라아게", "튀김", "소시지", "볶음밥", "만두", "핫바", "닭갈비"], "basis": "kg", "ok": 4500, "great": 4000, "min_pct": 30, "great_pct": 40},
+
+    {"label": "두부", "cat": "두부", "basis": "100g", "ok": 430, "great": 330, "min_pct": 40, "great_pct": 50},
+
+    {"label": "오징어", "cat": "오징어", "no_seasoned": true, "basis": "count", "count_units": ["마리", "미"], "ok": 3500, "great": 2500, "min_pct": 40, "great_pct": 50},
+
+    {"label": "배추", "cat": "채소", "name_any": ["배추"], "name_none": ["김치", "알배기", "알배추", "쌈배추"], "basis": "count", "count_units": ["포기", "통"], "ok": 1900, "great": 1500},
+    {"label": "무", "cat": "채소", "name_re": "^(햇|세척|다발|제주|국산|월동|신선)?\\s*무(\\s|\\(|$)", "basis": "count", "count_units": ["개", "통"], "ok": 1200, "great": 950},
+    {"label": "양파", "cat": "채소", "name_any": ["양파"], "basis": "kg", "ok": 1500, "great": 1200},
+    {"label": "대파", "cat": "채소", "name_any": ["대파"], "basis": "kg", "ok": 1700, "great": 1400},
+    {"label": "채소", "cat": "채소", "min_pct": 40, "great_pct": 50},
+
+    {"label": "사과", "cat": "과일", "name_any": ["사과"], "basis": "count", "count_units": ["개", "입", "과"], "ok": 1300, "great": 1000},
+    {"label": "감귤", "cat": "과일", "name_any": ["감귤", "귤"], "name_none": ["한라봉", "레드향", "천혜향", "황금향", "만감"], "basis": "kg", "ok": 3500, "great": 3000},
+    {"label": "바나나", "cat": "과일", "name_any": ["바나나"], "name_none": ["우유", "칩", "킥"], "basis": "100g", "ok": 250, "great": 200, "alt": {"basis": "count", "count_units": ["송이"], "ok": 3000, "great": 2400}},
+    {"label": "과일", "cat": "과일", "min_pct": 40, "great_pct": 50},
+
+    {"label": "계란", "cat": "계란", "basis": "count", "count_units": ["구", "개", "알"], "ok": 193, "great": 167},
+    {"label": "우유", "cat": "우유", "min_pct": 30, "great_pct": 40},
+    {"label": "쌀", "cat": "쌀", "min_pct": 30, "great_pct": 40},
+    {"label": "수산", "cat": "수산", "no_seasoned": true, "min_pct": 50, "great_pct": 60}
+  ]
+}
