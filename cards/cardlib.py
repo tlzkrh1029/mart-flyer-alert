@@ -478,7 +478,10 @@ def compare_note(it, basis, unit=""):
         parts.append(deal)
     elif pct:
         parts.append(f"{pct:.0f}%")
-    return ", ".join(parts)[:22]
+    note = ", ".join(parts)
+    if len(note) > 12 and len(parts) > 1:      # 칸이 좁아 두 줄이 되지 않도록, 길면 할인 조건 하나만 남긴다
+        note = parts[-1]
+    return note
 
 
 def compare_context(stores, cfg, today=None, max_rows=8):
