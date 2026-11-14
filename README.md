@@ -22,7 +22,7 @@
 3. `scripts/evaluate.py` 가 `config/criteria.json` 기준으로 판정하고 메시지를 만듭니다. 옮겨 적은 품목은 모두 `state/history/` 에 남깁니다.
 4. `cards/render.py` 가 판정 결과로 1080x1350(4:5) 카드 이미지를 만듭니다. 요약(⭐ 품목은 가격표 모양), 나머지 품목과 1+1 목록, ⭐ 품목이 실린 전단 원본 조각 순서이고, 내용이 많으면 다음 장으로 이어집니다. 헤드리스 크롬으로 HTML 템플릿(`cards/templates/`)을 찍고, 글꼴은 저장소에 넣은 Pretendard(SIL OFL 1.1, `cards/fonts/LICENSE.txt`)를 씁니다.
 5. `scripts/notify_telegram.py` 가 매장마다 앨범(2~10장, 첫 장에 ⭐ 품목을 적은 설명 글)을 먼저 보내고, 이어서 지금까지와 같은 텍스트 메시지를 보냅니다. 카드를 만들지 못하거나 앨범을 보내지 못해도 텍스트는 갑니다. 기준에 맞는 품목이 없어도 "새 전단이 올라왔다"는 짧은 메시지는 갑니다.
-6. 목요일 18:30 실행부터 그 주 일요일까지 한 번, 세 매장의 같은 품목을 단위 가격으로 맞춘 **매장 비교 카드**를 보냅니다(`config/compare.json`, 보낸 주는 `state/compare.json`). 두 매장 이상 전단에 나온 품목만, 관심 순서대로 최대 8개를 씁니다.
+6. 목요일 18:30 실행부터 그 주 일요일까지 한 번, 세 매장의 같은 품목을 단위 가격으로 맞춘 **매장 비교 카드**를 보냅니다(`config/compare.json`, 보낸 주는 `state/compare.json`). 두 매장 이상 전단에 나온 품목만, 관심 순서대로 최대 8개를 씁니다. 매장마다 최근 8일 안에 처리한 전단 가운데 행사 기간이 끝나지 않은 가장 최근 전단을 씁니다.
 
 카드 이미지는 실행마다 Actions 의 `cards` 아티팩트로 7일 동안 남습니다.
 
@@ -36,7 +36,7 @@ Claude 단계가 실패하거나 조각의 절반 이상을 읽지 못하면, �
 - `TELEGRAM_BOT_TOKEN`: @BotFather 에서 받은 봇 토큰
 - `TELEGRAM_CHAT_ID`: 메시지를 받을 대화 ID
 
-선택: Variables 탭에 `CLAUDE_MODEL`(기본 `sonnet`)을 두면 판독 모델을 바꿉니다.
+선택: Variables 탭에 `CLAUDE_MODEL`(기본 `claude-opus-5-5`)이나 `CLAUDE_EFFORT`(기본 `xhigh`, low·medium·high·xhigh·max 가운데 하나)를 두면 판독 모델이나 추론 강도를 바꿉니다.
 
 ## 수동 실행
 

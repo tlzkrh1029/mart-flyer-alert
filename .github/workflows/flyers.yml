@@ -42,7 +42,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     env:
       TZ: Asia/Seoul
     steps:
@@ -76,12 +76,13 @@ jobs:
           echo "schema=$(python -c 'import json;print(json.dumps(json.load(open("prompts/schema.json")),ensure_ascii=False,separators=(",",":")))')" >> "$GITHUB_OUTPUT"
 
       # 전단마다 Claude 세션을 따로 쓴다(scripts/fetch_flyers.py 의 BATCH_CHUNKS·MAX_BATCHES).
+      # 모델은 Opus 5.5, 추론 강도(effort)는 xhigh 가 기본이다. 저장소 변수 CLAUDE_MODEL·CLAUDE_EFFORT 로 바꿀 수 있다.
       # 한 세션에서 이미지를 많이 읽으면 먼저 읽은 이미지가 대화에서 비워져 그 전단을 읽지 못한다.
       - name: Claude 전단 판독 1
         id: claude1
         if: steps.fetch.outputs.new == 'true'
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 25
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_SETUP_TOKEN }}
@@ -89,7 +90,8 @@ jobs:
           prompt: "작업 지시는 ${{ github.workspace }}/prompts/extract.md 에 있습니다. Read 도구로 그 파일을 먼저 읽고, 지시대로 ${{ github.workspace }}/work/batch_1.json 의 전단 이미지를 모두 읽은 뒤 구조화된 출력으로 답하세요."
           classify_inline_comments: "false"
           claude_args: >-
-            --model ${{ vars.CLAUDE_MODEL || 'sonnet' }}
+            --model ${{ vars.CLAUDE_MODEL || 'claude-opus-5-5' }}
+            --effort ${{ vars.CLAUDE_EFFORT || 'xhigh' }}
             --max-turns 150
             --tools Read
             --allowedTools Read
@@ -101,7 +103,7 @@ jobs:
         id: claude2
         if: fromJSON(steps.fetch.outputs.batches || '0') >= 2
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 25
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_SETUP_TOKEN }}
@@ -109,7 +111,8 @@ jobs:
           prompt: "작업 지시는 ${{ github.workspace }}/prompts/extract.md 에 있습니다. Read 도구로 그 파일을 먼저 읽고, 지시대로 ${{ github.workspace }}/work/batch_2.json 의 전단 이미지를 모두 읽은 뒤 구조화된 출력으로 답하세요."
           classify_inline_comments: "false"
           claude_args: >-
-            --model ${{ vars.CLAUDE_MODEL || 'sonnet' }}
+            --model ${{ vars.CLAUDE_MODEL || 'claude-opus-5-5' }}
+            --effort ${{ vars.CLAUDE_EFFORT || 'xhigh' }}
             --max-turns 150
             --tools Read
             --allowedTools Read
@@ -121,7 +124,7 @@ jobs:
         id: claude3
         if: fromJSON(steps.fetch.outputs.batches || '0') >= 3
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 25
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_SETUP_TOKEN }}
@@ -129,7 +132,8 @@ jobs:
           prompt: "작업 지시는 ${{ github.workspace }}/prompts/extract.md 에 있습니다. Read 도구로 그 파일을 먼저 읽고, 지시대로 ${{ github.workspace }}/work/batch_3.json 의 전단 이미지를 모두 읽은 뒤 구조화된 출력으로 답하세요."
           classify_inline_comments: "false"
           claude_args: >-
-            --model ${{ vars.CLAUDE_MODEL || 'sonnet' }}
+            --model ${{ vars.CLAUDE_MODEL || 'claude-opus-5-5' }}
+            --effort ${{ vars.CLAUDE_EFFORT || 'xhigh' }}
             --max-turns 150
             --tools Read
             --allowedTools Read
@@ -141,7 +145,7 @@ jobs:
         id: claude4
         if: fromJSON(steps.fetch.outputs.batches || '0') >= 4
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 25
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_SETUP_TOKEN }}
@@ -149,7 +153,8 @@ jobs:
           prompt: "작업 지시는 ${{ github.workspace }}/prompts/extract.md 에 있습니다. Read 도구로 그 파일을 먼저 읽고, 지시대로 ${{ github.workspace }}/work/batch_4.json 의 전단 이미지를 모두 읽은 뒤 구조화된 출력으로 답하세요."
           classify_inline_comments: "false"
           claude_args: >-
-            --model ${{ vars.CLAUDE_MODEL || 'sonnet' }}
+            --model ${{ vars.CLAUDE_MODEL || 'claude-opus-5-5' }}
+            --effort ${{ vars.CLAUDE_EFFORT || 'xhigh' }}
             --max-turns 150
             --tools Read
             --allowedTools Read
@@ -161,7 +166,7 @@ jobs:
         id: claude5
         if: fromJSON(steps.fetch.outputs.batches || '0') >= 5
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 25
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_SETUP_TOKEN }}
@@ -169,7 +174,8 @@ jobs:
           prompt: "작업 지시는 ${{ github.workspace }}/prompts/extract.md 에 있습니다. Read 도구로 그 파일을 먼저 읽고, 지시대로 ${{ github.workspace }}/work/batch_5.json 의 전단 이미지를 모두 읽은 뒤 구조화된 출력으로 답하세요."
           classify_inline_comments: "false"
           claude_args: >-
-            --model ${{ vars.CLAUDE_MODEL || 'sonnet' }}
+            --model ${{ vars.CLAUDE_MODEL || 'claude-opus-5-5' }}
+            --effort ${{ vars.CLAUDE_EFFORT || 'xhigh' }}
             --max-turns 150
             --tools Read
             --allowedTools Read

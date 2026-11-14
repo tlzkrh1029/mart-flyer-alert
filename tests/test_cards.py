@@ -125,6 +125,29 @@ class TestCompare(unittest.TestCase):
 
 
 class TestNotify(unittest.TestCase):
+    def test_flyer_end(self):
+        self.assertEqual(C.flyer_end({"title": "[11.13(금)-15(일), 3일간] 킴스클럽 주말장"}, TODAY), dt.date(2026, 11, 15))
+        self.assertEqual(C.flyer_end({"title": "11/12(목) ~ 11/18(수) 금주 행사 안내"}, TODAY), dt.date(2026, 11, 18))
+        self.assertEqual(C.flyer_end({"title": "12/28(월) ~ 1/3(일)"}, dt.date(2027, 1, 2)), dt.date(2027, 1, 3))
+        self.assertIsNone(C.flyer_end({"title": "주말 특가"}, TODAY))
+
+    def test_compare_skips_ended_flyers(self):
+        import render
+        with tempfile.TemporaryDirectory() as d:
+            month = os.path.join(d, "history", "2026-11")
+            os.makedirs(month)
+            for name, title in (("20261112_kims_pyeongchon-1.json", "[11.12(목)-18(수)] 주간 행사"),
+                                ("20261114_kims_pyeongchon-2.json", "[11.13(금)-15(일), 3일간] 킴스클럽 주말장")):
+                json.dump({"flyer": {"title": title}, "items": []}, open(os.path.join(month, name), "w", encoding="utf-8"))
+            old, render.STATE = render.STATE, d
+            try:
+                pick = lambda day: (render.latest_history("kims_pyeongchon", day) or {}).get("flyer", {}).get("title")
+                self.assertIn("주말장", pick(dt.date(2026, 11, 14)))           # 둘 다 진행 중이면 최근 것
+                self.assertIn("주간 행사", pick(dt.date(2026, 11, 17)))        # 주말 전단이 끝나면 아직 진행 중인 것
+                self.assertIsNone(pick(dt.date(2026, 11, 19)))                  # 모두 끝났으면 비교에서 뺀다
+            finally:
+                render.STATE = old
+
     def test_multipart(self):
         body, ctype = notify_telegram.multipart({"chat_id": "1", "media": "[]"}, [("f0", "01.png", b"PNG", "image/png")])
         boundary = ctype.split("boundary=")[1]

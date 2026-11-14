@@ -69,6 +69,13 @@ def parse_range(text):
     return a, b
 
 
+def flyer_end(flyer, today=None):
+    """전단 행사가 끝나는 날. 제목이나 기간에서 날짜를 읽지 못하면 None"""
+    flyer = flyer or {}
+    r = parse_range(flyer.get("title") or flyer.get("period") or "")
+    return date_of(*r[1], today=today) if r else None
+
+
 def period_text(title, today=None):
     r = parse_range(title)
     if not r:

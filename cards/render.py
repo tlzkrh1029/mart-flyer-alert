@@ -219,16 +219,27 @@ def week_key(d):
 
 
 def latest_history(store_id, today, days=8):
-    best = None
+    """매장의 가장 최근 전단 기록. 처리한 지 days 일이 지났거나 행사 기간이 이미 끝난 전단은 쓰지 않는다
+    (예: 목요일에 킴스클럽 새 전단이 아직 없으면 지난 주말 전단은 빼고 비교한다)."""
+    cands = []
     for f in glob.glob(os.path.join(STATE, "history", "*", f"*_{store_id}-*.json")):
         name = os.path.basename(f)
         try:
             d = dt.datetime.strptime(name[:8], "%Y%m%d").date()
         except ValueError:
             continue
-        if 0 <= (today - d).days <= days and (best is None or name > os.path.basename(best)):
-            best = f
-    return load_json(best, None) if best else None
+        if 0 <= (today - d).days <= days:
+            cands.append(f)
+    for f in sorted(cands, key=os.path.basename, reverse=True):
+        h = load_json(f, None)
+        if not h:
+            continue
+        end = C.flyer_end(h.get("flyer"), today)
+        if end and end < today:
+            print(f"compare: {os.path.basename(f)} ended on {end:%m/%d}; not compared")
+            continue
+        return h
+    return None
 
 
 def main_compare(force):
