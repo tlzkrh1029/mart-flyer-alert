@@ -4,16 +4,20 @@
 
 | 매장 | 전단 출처 |
 |---|---|
-| 이마트 평촌점 | [마트몬](https://martmonster.com/gyeonggi/3695) |
-| 롯데마트 의왕점 | [마트몬](https://martmonster.com/gyeonggi/4039) |
-| 홈플러스 평촌점 | [마트몬](https://martmonster.com/gyeonggi/4892) |
+| 이마트 평촌점 | 이마트 전국 공통 전단: [이마트 월배점 카카오톡 채널](https://pf.kakao.com/_ExjSJG/posts) |
+| 롯데마트 의왕점 | 롯데마트 전국 공통 전단: [롯데마트 강변점 카카오톡 채널](https://pf.kakao.com/_lBCxiK/posts) |
 | 킴스클럽 평촌점 | [킴스클럽 카카오톡 채널](https://pf.kakao.com/_SBXxmxd/posts) (평촌점이 빠진 'N개점' 행사는 제외) |
+| 홈플러스 평촌점 | 꺼 둠: 마트몬이 GitHub 서버 요청을 막고, 전단을 매주 올리는 카카오톡 채널을 찾지 못했다 |
+
+처음에는 [마트몬](https://martmonster.com)에서 받았지만, 마트몬이 GitHub Actions 서버의 요청을 403 으로 거절해서 카카오톡 채널로 바꿨습니다.
+이마트·롯데마트 전단은 전국 공통이라, 매주 빠짐없이 전단을 올리는 지점 채널을 씁니다(평촌점 채널은 전단을 매주 올리지 않고, 의왕점 채널은 찾지 못했습니다).
+지점 채널을 바꾸려면 `config/stores.json` 의 `channel` 만 고치면 됩니다.
 
 ## 동작
 
 `.github/workflows/flyers.yml` 이 매일 08:30, 18:30(KST)에 돕니다. GitHub 예약 실행은 늦게 시작하곤 합니다.
 
-1. `scripts/fetch_flyers.py` 가 매장마다 전단 이미지 목록을 읽고, 지난번과 달라졌으면 이미지를 내려받아 위아래로 나눕니다(작은 글씨를 줄이지 않고 읽게 하려는 것입니다).
+1. `scripts/fetch_flyers.py` 가 채널마다 최근 게시물을 읽고, 아직 처리하지 않은 전단 게시물이 있으면 이미지를 내려받아 나눕니다(작은 글씨를 줄이지 않고 읽게 하려는 것입니다).
 2. 새 전단이 있을 때만 Claude 가 이미지를 읽고 품목·규격·가격·조건을 JSON 으로 옮겨 적습니다(`prompts/extract.md`, `prompts/schema.json`). 구독 토큰으로 돌기 때문에 API 요금은 들지 않고, 쓰는 양은 구독 사용 한도에서 빠집니다. Claude 에게는 Read 도구 하나만 줍니다.
 3. `scripts/evaluate.py` 가 `config/criteria.json` 기준으로 판정하고 메시지를 만듭니다. 옮겨 적은 품목은 모두 `state/history/` 에 남깁니다.
 4. `scripts/notify_telegram.py` 가 전단 하나당 메시지 하나를 보냅니다. 기준에 맞는 품목이 없어도 "새 전단이 올라왔다"는 짧은 메시지는 갑니다.
@@ -34,7 +38,7 @@ Claude 단계가 실패하면 그 전단은 처리 표시를 하지 않아 다�
 
 Actions → flyers → Run workflow
 
-- `force`: 이미 처리한 전단도 다시 읽을 매장 id(`emart_pyeongchon`, `lotte_uiwang`, `homeplus_pyeongchon`, `kims_pyeongchon`, 쉼표로 구분) 또는 `all`
+- `force`: 이미 처리한 전단도 다시 읽을 매장 id(`emart_pyeongchon`, `lotte_uiwang`, `kims_pyeongchon`, 쉼표로 구분) 또는 `all`
 - `dry_run`: 텔레그램으로 보내지 않고 실행 요약(Summary)에만 메시지를 남깁니다. 처리 표시도 하지 않습니다
 
 ## 기준 바꾸기
@@ -52,7 +56,7 @@ Actions → flyers → Run workflow
 
 ## 매장 추가
 
-`config/stores.json` 에 추가합니다. 마트몬 매장은 `source: martmonster` 와 매장 페이지 주소(검색 파라미터 없는 주소)만 있으면 됩니다. 마트몬 robots.txt 는 검색 파라미터 주소만 막고 매장 페이지는 허용합니다.
+`config/stores.json` 에 추가합니다. 카카오톡 채널은 `source: kakao` 와 채널 id(`pf.kakao.com/_xxxx` 의 `_xxxx`)를 적습니다. 마트몬(`source: martmonster`) 수집 코드도 남아 있지만, GitHub 서버에서는 403 으로 막힙니다.
 
 ## 시험
 

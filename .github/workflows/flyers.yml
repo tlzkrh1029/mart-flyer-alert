@@ -2,7 +2,7 @@ name: flyers
 
 # 매일 두 번 새 전단을 확인한다. 새 전단이 있을 때만 Claude(구독 토큰 CLAUDE_SETUP_TOKEN)가 이미지를 읽고,
 # config/criteria.json 기준에 맞는 품목과 1+1 을 텔레그램으로 보낸다. 새 전단이 없으면 Claude 단계를 건너뛰므로 구독 사용량을 쓰지 않는다.
-#   1) scripts/fetch_flyers.py : 마트몬(이마트 평촌·롯데마트 의왕·홈플러스 평촌)과 킴스클럽 카카오톡 채널에서 새 전단을 찾아 이미지를 내려받고 나눈다
+#   1) scripts/fetch_flyers.py : 카카오톡 채널(이마트·롯데마트 전국 공통 전단, 킴스클럽)에서 새 전단을 찾아 이미지를 내려받고 나눈다
 #   2) Claude 전단 판독        : Read 도구 하나만 쓰고, 품목을 구조화된 출력(JSON)으로만 돌려준다(prompts/extract.md, prompts/schema.json)
 #   3) scripts/evaluate.py     : 기준 판정 → 메시지 작성, 처리한 전단을 state/seen.json 에 표시, 품목 기록을 state/history 에 남긴다
 #   4) scripts/notify_telegram.py → 상태 커밋
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "이미 처리한 전단도 다시 읽을 매장 id(쉼표로 구분: emart_pyeongchon, lotte_uiwang, homeplus_pyeongchon, kims_pyeongchon) 또는 all"
+        description: "이미 처리한 전단도 다시 읽을 매장 id(쉼표로 구분: emart_pyeongchon, lotte_uiwang, kims_pyeongchon) 또는 all"
         type: string
         default: ""
       dry_run:
@@ -35,6 +35,8 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    env:
+      TZ: Asia/Seoul
     steps:
       - uses: actions/checkout@v5
 

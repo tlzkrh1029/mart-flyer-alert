@@ -1,22 +1,38 @@
 {
-  "_comment": "전단을 확인할 매장. source=martmonster 는 마트몬 매장 페이지(검색 파라미터 없는 주소만 씀, robots.txt 허용), source=kakao 는 카카오톡 채널 게시물(JSON)이다.",
+  "_comment": [
+    "전단을 확인할 매장. source=kakao 는 카카오톡 채널 게시물(JSON, robots.txt 허용), source=martmonster 는 마트몬 매장 페이지다.",
+    "2026-11-14: 마트몬이 GitHub Actions 서버의 요청을 403 으로 거절해서, 이마트·롯데마트는 카카오톡 채널로 바꿨다.",
+    "이마트·롯데마트 전단은 전국 공통이므로 매주 빠짐없이 전단을 올리는 지점 채널을 쓴다(평촌점 채널은 전단을 매주 올리지 않고, 의왕점 채널은 찾지 못했다).",
+    "require_any: 제목이나 본문에 이 낱말이 있는 게시물만 전단으로 본다. branch_keyword: 'N개점' 한정 행사는 본문에 이 낱말이 있을 때만 쓴다."
+  ],
   "stores": [
     {
       "id": "emart_pyeongchon",
       "name": "이마트 평촌점",
-      "source": "martmonster",
-      "url": "https://martmonster.com/gyeonggi/3695",
-      "msg_note": "이마트 전단은 전국 공통이고 가격은 은평점 기준입니다."
+      "source": "kakao",
+      "channel": "_ExjSJG",
+      "channel_name": "이마트 월배점",
+      "require_any": ["전단"],
+      "min_images": 5,
+      "max_age_days": 8,
+      "msg_note": "이마트 전국 공통 전단(이마트 월배점 카카오톡 채널)입니다."
     },
     {
       "id": "lotte_uiwang",
       "name": "롯데마트 의왕점",
-      "source": "martmonster",
-      "url": "https://martmonster.com/gyeonggi/4039"
+      "source": "kakao",
+      "channel": "_lBCxiK",
+      "channel_name": "롯데마트 강변점",
+      "require_any": ["전단", "행사 안내", "행사안내"],
+      "min_images": 3,
+      "max_age_days": 8,
+      "msg_note": "롯데마트 전국 공통 전단(롯데마트 강변점 카카오톡 채널)입니다."
     },
     {
       "id": "homeplus_pyeongchon",
       "name": "홈플러스 평촌점",
+      "enabled": false,
+      "_comment": "마트몬이 403 으로 막고, 전단을 매주 올리는 홈플러스 카카오톡 채널을 찾지 못해 꺼 둔다",
       "source": "martmonster",
       "url": "https://martmonster.com/gyeonggi/4892"
     },
@@ -25,11 +41,10 @@
       "name": "킴스클럽 평촌점",
       "source": "kakao",
       "channel": "_SBXxmxd",
-      "url": "https://pf.kakao.com/_SBXxmxd/posts",
+      "channel_name": "킴스클럽",
       "branch_keyword": "평촌",
       "min_images": 3,
-      "max_age_days": 8,
-      "_comment": "전국 공통 전단과 일부 매장 한정 행사(N개점)가 섞여 올라온다. 'N개점' 행사는 본문에 평촌이 있을 때만 쓴다"
+      "max_age_days": 8
     }
   ]
 }

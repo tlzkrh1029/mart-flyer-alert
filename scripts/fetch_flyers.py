@@ -3,7 +3,8 @@
 
 매장 목록은 config/stores.json 에 있다.
   martmonster : 마트몬 매장 페이지 본문(rhymix_content)의 전단 이미지 목록. 목록의 해시가 바뀌면 새 전단으로 본다.
-  kakao       : 카카오톡 채널 게시물 JSON. 이미지가 여러 장이고 제목에 날짜가 있는 게시물을 전단으로 본다.
+  kakao       : 카카오톡 채널 게시물 JSON(robots.txt 허용). 이미지가 여러 장이고 날짜가 있는 게시물을 전단으로 본다.
+                이마트·롯데마트 전단은 전국 공통이라, 매주 빠짐없이 전단을 올리는 지점 채널을 쓴다.
 
 쓰는 파일
   work/manifest.json : 이번 실행에서 처리할 전단 목록(Claude 단계와 evaluate.py 가 읽는다)
@@ -30,9 +31,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORK = os.path.join(ROOT, "work")
 UA = "Mozilla/5.0 (compatible; mart-flyer-alert/1.0; +https://github.com/tlzkrh1029/mart-flyer-alert)"
 MAX_CHUNKS = 90          # 한 번 실행에 Claude 에게 맡기는 이미지 조각 수 상한(구독 사용량 보호). 넘치는 전단은 다음 실행으로 미룬다
-CHUNK_ASPECT = 0.85      # 조각 높이 = 너비 x 0.85. 1200px 너비 전단은 약 1020px 높이로 잘린다(축소 없이 읽히는 크기)
+MAX_WIDTH = 1200         # 이보다 넓은 이미지는 줄인다
+CHUNK_ASPECT = 0.8       # 조각 높이 = 너비 x 0.8. 1200x960(약 1.15MP)은 Claude 가 더 줄이지 않고 읽는 크기다
 CHUNK_OVERLAP = 0.12     # 위아래 조각이 겹치는 비율(품목이 경계에서 잘리지 않게)
-DATE_RE = re.compile(r"(\d{1,2})\.(\d{1,2})")
+DATE_RE = re.compile(r"(?<!\d)(\d{1,2})[./](\d{1,2})(?!\d)")
 
 
 def log(msg):
@@ -151,9 +153,12 @@ def _post_images(post):
     return out
 
 
-def date_key(title):
-    """제목의 첫 두 날짜(월.일)로 행사 키를 만든다. 같은 행사를 이미지 게시물과 멀티미디어 게시물로 두 번 올린 경우를 묶는다."""
-    ds = DATE_RE.findall(title or "")
+def date_key(title, text=""):
+    """제목(없으면 본문)의 첫 두 날짜(월.일 또는 월/일)로 행사 키를 만든다.
+    같은 행사를 이미지 게시물과 멀티미디어 게시물로 두 번 올린 경우를 하나로 묶는다."""
+    ds = [(m, d) for m, d in DATE_RE.findall(title or "") if 1 <= int(m) <= 12 and 1 <= int(d) <= 31]
+    if not ds:
+        ds = [(m, d) for m, d in DATE_RE.findall(text or "") if 1 <= int(m) <= 12 and 1 <= int(d) <= 31]
     return "|".join(f"{int(m)}.{int(d)}" for m, d in ds[:2])
 
 
@@ -163,6 +168,7 @@ def select_kakao_posts(data, store, seen, now=None):
     seen_ids = set(seen.get("posts", []))
     seen_keys = set(seen.get("keys", []))
     branch = store.get("branch_keyword", "")
+    require = store.get("require_any") or []     # 예: ["전단"] → 제목이나 본문에 이 낱말이 있는 게시물만
     min_images = int(store.get("min_images", 3))
     max_age = float(store.get("max_age_days", 8)) * 86400
     groups = {}
@@ -170,8 +176,10 @@ def select_kakao_posts(data, store, seen, now=None):
         title = post.get("title") or ""
         images = _post_images(post)
         text = _post_text(post)
-        key = date_key(title)
+        key = date_key(title, text)
         if len(images) < min_images or not key:
+            continue
+        if require and not any(w in title + text for w in require):
             continue
         published = (post.get("published_at") or 0) / 1000
         if now - published > max_age:
@@ -199,12 +207,21 @@ def split_image(raw, out_dir, stem):
     img = Image.open(io.BytesIO(raw))
     img = img.convert("RGB")
     w, h = img.size
-    if w > 1500:   # Claude 가 어차피 줄이는 크기는 미리 줄여 둔다
-        img = img.resize((1500, round(h * 1500 / w)))
+    if w > h * 1.2:   # 두 쪽을 펼친 전단은 좌우로 나눠 각각 처리한다
+        left = split_pil(img.crop((0, 0, w // 2, h)), out_dir, stem + "L")
+        right = split_pil(img.crop((w // 2, 0, w, h)), out_dir, stem + "R")
+        return left + right
+    return split_pil(img, out_dir, stem)
+
+
+def split_pil(img, out_dir, stem):
+    w, h = img.size
+    if w > MAX_WIDTH:
+        img = img.resize((MAX_WIDTH, round(h * MAX_WIDTH / w)))
         w, h = img.size
     chunk_h = max(1, int(w * CHUNK_ASPECT))
     paths = []
-    if h <= chunk_h * 1.15:
+    if h <= max(chunk_h * 1.15, w * 1.05):     # 정사각형에 가까운 이미지는 자르지 않는다
         boxes = [(0, 0, w, h)]
     else:
         overlap = int(chunk_h * CHUNK_OVERLAP)
@@ -217,7 +234,7 @@ def split_image(raw, out_dir, stem):
             if bottom >= h:
                 break
             top += step
-            if h - top < chunk_h * 0.35:     # 마지막 조각이 너무 얇으면 앞 조각에 붙인다
+            if h - top < chunk_h * 0.4:      # 마지막 조각이 너무 얇으면 앞 조각에 붙인다
                 boxes[-1] = (0, boxes[-1][1], w, h)
                 break
     for i, box in enumerate(boxes):
@@ -256,6 +273,8 @@ def main():
     budget = MAX_CHUNKS
     for store in stores:
         sid = store["id"]
+        if store.get("enabled") is False:
+            continue
         forced = "all" in force or sid in force
         st = seen.get(sid, {})
         try:

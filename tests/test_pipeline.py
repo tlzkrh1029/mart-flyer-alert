@@ -51,6 +51,32 @@ class TestKakao(unittest.TestCase):
         self.assertEqual(sorted(got[115300000][4]), [115300000, 115300001])
         self.assertEqual(len(got[115300000][1]), 9)
 
+    def test_date_key(self):
+        self.assertEqual(fetch_flyers.date_key("11/12(목) ~ 11/18(수) 금주 행사 안내"), "11.12|11.18")
+        self.assertEqual(fetch_flyers.date_key("[이마트월배점]금주 전단행사 안내(11/12(목) ~ 11/18(수)"), "11.12|11.18")
+        self.assertEqual(fetch_flyers.date_key("김장 원스톱 쇼핑", "※전단적용기간: 11/12(목) ~ 11/18(수)"), "11.12|11.18")
+        self.assertEqual(fetch_flyers.date_key("와인 大 축제", "1/2 할인"), "1.2")
+
+    def test_require_any(self):
+        data = {"items": [
+            {"id": 1, "title": "11/12(목) ~ 11/18(수) 금주 행사 안내", "published_at": NOW * 1000,
+             "contents": [{"t": "text", "v": "※전단적용기간: 11/12(목) ~ 11/18(수)"}], "media": [{"type": "image", "xlarge_url": f"u{i}"} for i in range(5)]},
+            {"id": 2, "title": "절임배추 사전예약 11/20", "published_at": NOW * 1000,
+             "contents": [{"t": "text", "v": "사전예약"}], "media": [{"type": "image", "xlarge_url": f"v{i}"} for i in range(5)]},
+        ]}
+        store = {"id": "lotte", "require_any": ["전단"], "min_images": 3, "max_age_days": 8}
+        self.assertEqual([p[0]["id"] for p in fetch_flyers.select_kakao_posts(data, store, {}, now=NOW)], [1])
+
+    def test_real_channels(self):
+        # 2026-11-14 기준: 와인·김장 게시물은 거르고 주간 전단 게시물 하나만 고른다
+        stores = {s["id"]: s for s in json.load(open(os.path.join(ROOT, "config", "stores.json"), encoding="utf-8"))["stores"]}
+        fx = json.loads(fixture("kakao_emart_lotte.json"))
+        emart = fetch_flyers.select_kakao_posts(fx["emart_wolbae"], stores["emart_pyeongchon"], {}, now=NOW)
+        lotte = fetch_flyers.select_kakao_posts(fx["lotte_gangbyeon"], stores["lotte_uiwang"], {}, now=NOW)
+        self.assertEqual([p[0]["id"] for p in emart], [115205793])
+        self.assertEqual(emart[0][3], "11.12|11.18")
+        self.assertEqual([p[0]["id"] for p in lotte], [115193409])
+
     def test_seen(self):
         self.assertEqual([p[0]["id"] for p in self.picks({"keys": ["11.18|11.24"], "posts": [115194066]})], [])
 
@@ -65,15 +91,24 @@ class TestSplit(unittest.TestCase):
             return [Image.open(p).size for p in paths]
 
     def test_flyer_page(self):
-        self.assertEqual(self.run_split(1200, 1800), [(1200, 1020), (1200, 902)])
+        self.assertEqual(self.run_split(1200, 1800), [(1200, 960), (1200, 955)])
 
     def test_square(self):
         self.assertEqual(self.run_split(800, 800), [(800, 800)])
 
     def test_long(self):
         sizes = self.run_split(1080, 5000)
-        self.assertEqual(len(sizes), 6)
+        self.assertEqual(len(sizes), 7)
         self.assertTrue(all(h >= 300 for _, h in sizes))
+
+    def test_wide_spread(self):
+        # 두 쪽을 펼친 전단(6142x4252)은 좌우로 나눈 뒤 각각 1200 너비로 줄여 위아래로 자른다
+        sizes = self.run_split(6142, 4252)
+        self.assertEqual(len(sizes), 4)
+        self.assertTrue(all(w == 1200 for w, _ in sizes))
+
+    def test_lotte_page(self):
+        self.assertEqual(len(self.run_split(2657, 3839)), 2)
 
 
 class TestEvaluate(unittest.TestCase):
