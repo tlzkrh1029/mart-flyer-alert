@@ -12,6 +12,7 @@
   work/batch_N.json  : Claude 판독 단계 N 이 읽을 목록. 전단 하나가 한 묶음이고, 조각이 많은 전단은 여러 묶음으로 나눈다
   work/img/<key>/    : 내려받아 나눈 이미지
   work/restricted.json : 로그인해야 볼 수 있어 읽지 못한 전단 글 안내(notify_telegram.py 가 보낸다)
+  work/near_miss.json  : 전단 조건에 아깝게 못 미친 이번 주 글(check_missing.py 가 미발견 안내에 적는다)
   GITHUB_OUTPUT      : new=true|false, batches=묶음 수, restricted=true|false
 읽는 파일
   state/seen.json    : 이미 처리한 전단(마트몬은 서명, 카카오는 게시물 번호·날짜 키·제목과 사진 서명·묶음별 읽은 쪽수)
@@ -20,6 +21,7 @@
 종료 코드는 항상 0 이다. 한 매장이 실패해도 나머지 매장은 처리하고, 실패는 경고로만 남긴다.
 """
 import argparse
+import datetime as dt
 import hashlib
 import io
 import json
@@ -31,6 +33,8 @@ import time
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
+
+import check_missing   # 같은 scripts 폴더. 이번 주 판단(due·has_current)을 같은 기준으로 쓴다
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORK = os.path.join(ROOT, "work")
@@ -49,6 +53,7 @@ REREAD = {
     "upgrade": "같은 주 전단을 이미 보냈지만, 쪽수가 훨씬 많은 전단이 새로 올라와 다시 읽었습니다.",
     "extra": "같은 주 전단을 바로 앞에 보냈지만, 다른 채널에 쪽수가 훨씬 많은 전단이 있어 함께 보냅니다.",
     "edited": "이미 보낸 전단 게시물의 제목이나 사진이 바뀌어 다시 읽었습니다.",
+    "fallback": "행사 낱말 목록에 없던 글이라 늦게 찾았습니다: '{title}'",
 }
 
 
@@ -185,6 +190,15 @@ def effective_title(post):
     return next((line.strip() for line in _post_text(post).splitlines() if line.strip()), "")
 
 
+def post_label(post, n=50):
+    """사람이 알아볼 글 이름. 제목 칸이 빈 글은 첫 줄이 '어서오세요!' 같은 인사인 경우가 있어 앞쪽 몇 줄을 이어 붙인다."""
+    raw = (post.get("title") or "").strip()
+    if raw:
+        return raw
+    joined = " ".join(line.strip() for line in _post_text(post).splitlines() if line.strip())
+    return joined[:n] + ("…" if len(joined) > n else "")
+
+
 def _image_media(post):
     return [m for m in post.get("media") or [] if m.get("type") == "image"]
 
@@ -225,8 +239,9 @@ def week_start(key):
     return (key or "").split("|")[0]
 
 
-def kakao_candidate(post, store, now):
+def kakao_candidate(post, store, now, near=False):
     """게시물이 전단 후보인지 본다. 후보가 아니면 None.
+    near=True 이면 전단 조건(낱말·사진 수)에 아깝게 못 미친 글도 near=True 로 돌려준다(fallback_posts 가 쓴다).
     제외 낱말·다른 지점 표시(단독)는 제목만 본다(제목 칸이 비면 본문 첫 줄). 본문에는 전단에도 '광고상품', '롯데마트 단독'
     같은 말이 섞여 있기 때문이다. restricted=True 인 후보는 사진을 볼 수 없어 읽지 못하고 안내만 보낸다."""
     ch = post.get("_ch") or {}
@@ -258,16 +273,22 @@ def kakao_candidate(post, store, now):
     need = int(ch.get("min_images", store.get("min_images", 3)))
     regular = (not require or any(w in full for w in require)) and (restricted or len(images) >= need)
     event = any(w in full for w in store.get("event_any") or [])
+    near_miss = False
     if not regular:
         # 정기 전단 조건(낱말·사진 수)에 못 미쳐도 고래잇·쓱데이 같은 행사 전단은 사진 event_min_images 장부터 인정한다.
         # 이 길로 들어오는 글은 사은품 홍보 글이 많아서, 제목에 증정·스탬프 같은 낱말이 있으면 뺀다
-        if not event or any(w in title for w in store.get("event_exclude_title") or []):
+        if any(w in title for w in store.get("event_exclude_title") or []):
             return None
-        if not restricted and len(images) < int(store.get("event_min_images", need)):
-            return None
+        if not (event and (restricted or len(images) >= int(store.get("event_min_images", need)))):
+            # 정기 전단 조건도 행사 전단 조건도 못 채운 글. 기간(시작일과 끝날)이 적혀 있고 사진이 몇 장 있으면
+            # '아깝게 걸린 글'이다. 행사 이름이 바뀌어 목록에 없는 전단일 수 있어 따로 모아 둔다
+            fb = store.get("fallback") or {}
+            if not (near and fb and not restricted and "|" in key and len(images) >= int(fb.get("min_images", 2))):
+                return None
+            near_miss = True
     return {"post": post, "title": title, "text": text, "key": key, "images": images,
             "pages": 0 if restricted else page_count(post), "own": own, "store_only": store_only,
-            "regional": bool(ch.get("regional")), "event": event, "restricted": restricted}
+            "regional": bool(ch.get("regional")), "event": event, "restricted": restricted, "near": near_miss}
 
 
 def _rank(c):
@@ -296,11 +317,19 @@ def _kakao_groups(data, store, now):
     return groups, group_of
 
 
+def _as_pick(c, cands, reason):
+    ids = [c["post"].get("id")] + [x["post"].get("id") for x in cands if x is not c]
+    info = {k: c[k] for k in ("group", "pages", "own", "regional", "title")}
+    info.update(sig=post_sig(c["post"]), reason=reason)
+    return (c["post"], c["images"], c["text"], c["key"], ids, info)
+
+
 def select_kakao_posts(data, store, seen, now=None):
     """새로 처리할 전단 게시물을 고른다.
     반환: [(게시물, 이미지 주소, 본문, 날짜 키, 같은 행사 게시물 번호들(고른 것이 먼저), 정보)]
     정보: group(묶음), pages(쪽수), sig(제목·사진 서명), own, regional, title(제목),
           reason: new(새 전단) · extra(같은 실행에서 함께 읽는 훨씬 큰 전단) · upgrade(이미 읽은 주의 훨씬 큰 전단) · edited(고쳐 올림)
+                  · fallback(그 주 전단을 못 찾아 읽어 보는 '아깝게 걸린 글', fallback_posts)
     data["items"] 에는 여러 채널의 게시물이 섞여 있을 수 있다(게시물의 '_ch' 에 채널 정보)."""
     now = now or time.time()
     seen_ids = set(seen.get("posts", []))
@@ -313,10 +342,7 @@ def select_kakao_posts(data, store, seen, now=None):
     chosen = []
 
     def pick(c, cands, reason):
-        ids = [c["post"].get("id")] + [x["post"].get("id") for x in cands if x is not c]
-        info = {k: c[k] for k in ("group", "pages", "own", "regional", "title")}
-        info.update(sig=post_sig(c["post"]), reason=reason)
-        chosen.append((c["post"], c["images"], c["text"], c["key"], ids, info))
+        chosen.append(_as_pick(c, cands, reason))
 
     for gkey, cands in groups.items():
         cands = [c for c in cands if c["post"].get("id") not in skip_ids]
@@ -359,6 +385,36 @@ def restricted_posts(data, store, seen, notified, chosen_groups=(), now=None):
             continue
         out += [c for c in cands if c["restricted"] and c["post"].get("id") not in seen_ids]
     return out
+
+
+def near_misses(data, store, seen, today, now=None):
+    """오늘이 기간에 들어가는 '아깝게 걸린 글'(쪽수가 많은 순). 처리한 글은 빼고, 읽어 보니 전단이 아니었던 글은 남긴다
+    (전단 미발견 안내에 '건너뛴 글'로 적으려는 것)."""
+    now = now or time.time()
+    seen_ids = set(seen.get("posts", []))
+    out = []
+    for post in data.get("items", []):
+        c = kakao_candidate(post, store, now, near=True)
+        if c and c["near"] and c["post"].get("id") not in seen_ids and check_missing.has_current([c["key"]], today):
+            out.append(c)
+    return sorted(out, key=lambda c: (c["pages"], c["post"].get("published_at") or 0), reverse=True)
+
+
+def fallback_posts(data, store, seen, covered_keys, now_dt, now=None):
+    """정한 요일·시각(목요일 17시)이 지나도 그 주 전단을 못 찾았으면, 아깝게 걸린 글을 Claude 가 읽어 보게 고른다.
+    행사 이름이 바뀌어 event_any 목록에 없는 전단을 되찾으려는 것이다. 전단이 아니면 evaluate.py 가 skip 에 남기고,
+    다음 실행이 다음 글을 읽는다. 한 번에 fallback.max_reads 개까지."""
+    cfg = store.get("fallback")
+    if not cfg or not check_missing.due(cfg, now_dt):
+        return []
+    today = now_dt.date()
+    if check_missing.has_current(list(seen.get("keys", [])) + list(covered_keys), today):
+        return []
+    skip = set(seen.get("skip", []))
+    cands = [c for c in near_misses(data, store, seen, today, now) if c["post"].get("id") not in skip]
+    for c in cands:
+        c["group"] = check_missing.week_key(today) + ":" + c["key"]   # 그 주 전단 묶음과 섞이지 않게
+    return [_as_pick(c, [], "fallback") for c in cands[:int(cfg.get("max_reads", 2))]]
 
 
 def restricted_message(store, title, link):
@@ -494,11 +550,12 @@ def main():
     os.makedirs(WORK, exist_ok=True)
 
     for old in os.listdir(WORK):
-        if re.fullmatch(r"batch_\d+\.json", old) or old == "restricted.json":
+        if re.fullmatch(r"batch_\d+\.json", old) or old in ("restricted.json", "near_miss.json"):
             os.remove(os.path.join(WORK, old))
 
-    flyers, restricted = [], []
+    flyers, restricted, near_list = [], [], {}
     slots = MAX_BATCHES
+    now_dt = dt.datetime.now()   # Actions 는 TZ=Asia/Seoul
     for store in stores:
         sid = store["id"]
         if store.get("enabled") is False:
@@ -550,6 +607,16 @@ def main():
                 picks = select_kakao_posts({"items": items}, store, st_now)
                 if not picks:
                     log(f"{sid}: no new posts")
+                if store.get("missing_alert") or store.get("fallback"):
+                    for c in near_misses({"items": items}, store, st_now, now_dt.date())[:5]:
+                        ch = c["post"].get("_ch") or store_channels(store)[0]
+                        near_list.setdefault(sid, []).append(
+                            {"title": post_label(c["post"]), "link": f"https://pf.kakao.com/{ch['id']}/{c['post'].get('id')}"})
+                    covered = [p[3] for p in picks if not p[5]["group"].startswith("단독:")]
+                    extra = fallback_posts({"items": items}, store, st_now, covered, now_dt)
+                    for p in extra:
+                        log(f"{sid}: this week's flyer not found yet; reading near-miss post {p[0].get('id')} ({p[5]['title']})")
+                    picks = picks + extra
                 if store.get("restricted_alert"):
                     for c in restricted_posts({"items": items}, store, st_now, notified.get(sid, []),
                                               chosen_groups=[p[5]["group"] for p in picks]):
@@ -580,7 +647,7 @@ def main():
                         # 우리 매장 단독 전단은 그 주 전단으로 치지 않는다(날짜 키를 남기지 않음)
                         "date_key": "" if info["group"].startswith("단독:") else dkey,
                         "group": info["group"], "pages": info["pages"], "sig": info["sig"],
-                        "reread": REREAD.get(info["reason"], ""),
+                        "reread": REREAD.get(info["reason"], "").format(title=post_label(post)),
                         "images": images, "text": text[:4000],
                         "note": note.replace("{channel}", ch["name"]),
                     })
@@ -601,6 +668,9 @@ def main():
     if restricted:
         with open(os.path.join(WORK, "restricted.json"), "w", encoding="utf-8") as f:
             json.dump(restricted, f, ensure_ascii=False, indent=1)
+    if near_list:   # check_missing.py 가 '전단을 찾지 못했습니다' 안내에 건너뛴 글로 적는다
+        with open(os.path.join(WORK, "near_miss.json"), "w", encoding="utf-8") as f:
+            json.dump(near_list, f, ensure_ascii=False, indent=1)
     new = "true" if flyers else "false"
     chunks = sum(len(f["images"]) for f in flyers)
     log(f"new flyers: {len(flyers)} ({chunks} chunks, {len(batches)} reading session(s)), "

@@ -1,4 +1,5 @@
 """수집·판정 로직 시험. 실행: python -m unittest discover -s tests -v"""
+import datetime
 import io
 import json
 import os
@@ -593,6 +594,69 @@ class TestMarkDone(unittest.TestCase):
     def test_reread_line(self):
         flyer = {"store_name": "이마트 평촌점", "period": "기간", "link": "L", "reread": fetch_flyers.REREAD["upgrade"]}
         self.assertIn("※ 같은 주 전단을 이미 보냈지만", evaluate.build_message(flyer, [], [], []))
+
+
+KST = datetime.timezone(datetime.timedelta(hours=9))
+THU = datetime.datetime(2026, 11, 26, 18, 0)              # 목요일 18시(Actions 는 TZ=Asia/Seoul)
+THU_TS = THU.replace(tzinfo=KST).timestamp()
+
+
+def fpost(store, pid, title, body, n, ch_id, hours_before_thu, size=PORTRAIT):
+    p = cpost(store, pid, title, body, n, ch_id, 0, size)
+    p["published_at"] = int((THU_TS - hours_before_thu * 3600) * 1000)
+    return p
+
+
+# 행사 이름이 바뀌어 목록에 없는 전단(본문에 '전단'도 없다): 울산점 쓱데이 글을 본떴다
+NEW_NAME = ("", "어서오세요! 돌아왔습니다~✨\n대한민국 시그니처 세일, 2026 쓱쓱위크🎁\n🗓기 간 : 11/26(목) ~ 11/29(일)")
+
+
+class TestFallback(unittest.TestCase):
+    def fb(self, items, seen=None, covered=(), now_dt=THU, store=EMART):
+        got = fetch_flyers.fallback_posts({"items": items}, store, seen or {}, covered, now_dt, now=THU_TS)
+        return [(p[0]["id"], p[5]["reason"]) for p in got]
+
+    def test_new_event_name(self):
+        post = fpost(EMART, 1, *NEW_NAME, 6, "_avxcxob", 20)
+        self.assertEqual(fetch_flyers.select_kakao_posts({"items": [post]}, EMART, {}, now=THU_TS), [])   # 평소에는 못 잡는다
+        self.assertEqual(self.fb([post]), [(1, "fallback")])                         # 목요일 17시가 지나면 읽어 본다
+        self.assertEqual(self.fb([post], now_dt=THU.replace(hour=16)), [])           # 목요일 17시 전
+        self.assertEqual(self.fb([post], now_dt=THU - datetime.timedelta(days=1)), [])
+        self.assertEqual(self.fb([post], seen={"keys": ["11.26|12.2"]}), [])         # 이번 주 전단을 이미 찾았다
+        self.assertEqual(self.fb([post], covered=["11.26|12.2"]), [])                # 이번 실행에서 찾았다
+        self.assertEqual(self.fb([post], seen={"skip": [1]}), [])                    # 읽어 보니 전단이 아니었다
+        left = fetch_flyers.near_misses({"items": [post]}, EMART, {"skip": [1]}, THU.date(), now=THU_TS)
+        self.assertEqual([c["post"]["id"] for c in left], [1])                        # 안내에는 건너뛴 글로 적는다
+
+    def test_not_near_miss(self):
+        giveaway = fpost(EMART, 2, "쓱쓱위크 사은품 증정 안내", "11/26(목) ~ 11/29(일)", 3, "_ExjSJG", 5)
+        one = fpost(EMART, 3, "", NEW_NAME[1], 1, "_avxcxob", 5)
+        no_end = fpost(EMART, 4, "", "2026 쓱쓱위크\n11/26(목)부터!", 6, "_avxcxob", 5)
+        other = fpost(EMART, 5, "[이마트천안터미널점] 쓱쓱위크 단독 행사", "11/26(목) ~ 11/29(일)", 6, "_xdGQxls", 5)
+        old = fpost(EMART, 6, "", NEW_NAME[1], 6, "_avxcxob", 24 * 9)
+        self.assertEqual(self.fb([giveaway, one, no_end, other, old]), [])
+        self.assertEqual(self.fb([fpost(KIMS, 7, "", NEW_NAME[1], 6, "_SBXxmxd", 5)], store=KIMS), [])   # 킴스클럽은 끔
+
+    def test_max_reads(self):
+        posts = [fpost(EMART, i, *NEW_NAME, n, "_avxcxob", 5) for i, n in ((1, 3), (2, 8), (3, 5))]
+        self.assertEqual(self.fb(posts), [(2, "fallback"), (3, "fallback")])         # 쪽수가 많은 순으로 두 개까지
+
+    def test_label(self):
+        post = fpost(EMART, 1, *NEW_NAME, 6, "_avxcxob", 20)
+        self.assertEqual(fetch_flyers.post_label(post), "어서오세요! 돌아왔습니다~✨ 대한민국 시그니처 세일, 2026 쓱쓱위크🎁 🗓기 간 : 11…")
+        self.assertEqual(fetch_flyers.post_label(fpost(EMART, 2, "[이마트월배점] 쓱쓱위크", "", 3, "_ExjSJG", 5)), "[이마트월배점] 쓱쓱위크")
+
+    def test_note_and_notice(self):
+        self.assertEqual(fetch_flyers.REREAD["fallback"].format(title="2026 쓱쓱위크"),
+                         "행사 낱말 목록에 없던 글이라 늦게 찾았습니다: '2026 쓱쓱위크'")
+        skipped = [{"title": "어서오세요! 돌아왔습니다~✨", "link": "https://pf.kakao.com/_avxcxob/1"}]
+        stores = json.load(open(os.path.join(ROOT, "config", "stores.json"), encoding="utf-8"))["stores"]
+        wk, out = check_missing.find_missing(stores, {}, {}, {}, datetime.datetime(2026, 11, 27, 18, 0),
+                                             {"emart_pyeongchon": skipped})
+        msgs = dict((s["id"], m) for s, m in out)
+        self.assertIn("전단 조건에 맞지 않아 건너뛴 이번 주 글입니다.", msgs["emart_pyeongchon"])
+        self.assertIn("• 어서오세요! 돌아왔습니다~✨\n  https://pf.kakao.com/_avxcxob/1", msgs["emart_pyeongchon"])
+        self.assertNotIn("건너뛴", msgs["lotte_uiwang"])
 
 
 if __name__ == "__main__":

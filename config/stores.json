@@ -12,6 +12,7 @@
   "exclude_title·exclude_title_re: 제목(제목 칸이 비면 본문 첫 줄)에 이 낱말·패턴이 있으면 뺀다. 본문은 보지 않는다(진짜 전단 본문에도 '광고상품' 같은 말이 섞여 있다).",
   "other_store_words: 제목에 이 낱말(단독)이 있으면 다른 지점 한정 전단·행사로 보고 뺀다. 우리 매장 채널 글이거나 제목에 own_names(평촌 등)가 있으면 빼지 않고, 전국 공통 전단과 따로 한 전단으로 먼저 처리한다.",
   "읽어 보니 전단이 아니었던 글(상품 가격 없는 사은품 안내 등)은 알리지 않고, 그 주 전단을 계속 기다린다.",
+  "fallback: 이 요일·시각(weekday 3=목요일 17시)이 지나도 이번 주 전단을 못 찾으면, 전단 조건에 아깝게 못 미친 글(기간이 적혀 있고 사진 min_images 장 이상, 제외 낱말·다른 지점 단독·사은품 제목이 아닌 글)을 Claude 가 사진까지 읽어 보고 전단이면 보낸다. 행사 이름이 바뀌어 event_any 에 없을 때를 위한 것이다. 한 실행에 max_reads 개까지 읽고, 전단이 아니면 다음 실행이 다음 글을 읽는다. 끝내 못 찾으면 missing_alert 안내에 건너뛴 글을 적는다.",
   "msg_note 의 {channel} 은 실제로 읽은 채널 이름으로 바뀐다. 채널에 msg_note 가 있으면 그것을 쓴다. missing_alert: 이 요일·시각이 지나도 이번 주 전단을 찾지 못하면 알린다(weekday 0=월요일).",
   "branch_keyword: 'N개점' 한정 행사는 본문에 이 낱말이 있을 때만 쓴다. restricted_alert: 로그인해야 볼 수 있는 전단 글(킴스클럽 2025년 가을~2026년 봄)이 올라오면 알린다."
  ],
@@ -84,6 +85,12 @@
    ],
    "max_age_days": 8,
    "msg_note": "이마트 전국 공통 전단({channel} 카카오톡 채널)입니다.",
+   "fallback": {
+    "weekday": 3,
+    "after_hour": 17,
+    "min_images": 2,
+    "max_reads": 2
+   },
    "missing_alert": {
     "weekday": 4,
     "after_hour": 17,
@@ -140,6 +147,12 @@
    ],
    "max_age_days": 8,
    "msg_note": "롯데마트 전국 공통 전단({channel} 카카오톡 채널)입니다.",
+   "fallback": {
+    "weekday": 3,
+    "after_hour": 17,
+    "min_images": 2,
+    "max_reads": 2
+   },
    "missing_alert": {
     "weekday": 4,
     "after_hour": 17

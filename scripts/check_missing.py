@@ -14,6 +14,7 @@ evaluate.py 가 따로 '직접 확인' 메시지를 보내기 때문이다.
   state/missing.json   : 매장별로 안내를 보낸 주
   work/manifest.json   : 이번 실행에서 새로 찾은 전단(있으면)
   work/not_flyers.json : 그 가운데 읽어 보니 전단이 아니었던 글(evaluate.py). '찾았다'에서 뺀다
+  work/near_miss.json  : 전단 조건에 아깝게 못 미친 이번 주 글(fetch_flyers.py). 안내에 '건너뛴 글'로 적는다
 쓰는 파일
   work/missing.json    : {"week": "2026-W47", "stores": [...], "messages": [...]}
   GITHUB_OUTPUT        : ready=true (보낼 안내가 있을 때)
@@ -86,18 +87,22 @@ def due(cfg, now):
     return wd > cfg["weekday"] or (wd == cfg["weekday"] and now.hour >= cfg.get("after_hour", 0))
 
 
-def message(store, cfg):
+def message(store, cfg, skipped=()):
     names = ", ".join(c.get("name") or c["id"] for c in store.get("channels") or [{"id": store.get("channel", ""), "name": store.get("channel_name", "")}])
     lines = [f"⚠️ {store['name']}: 이번 주 전단을 찾지 못했습니다",
              "",
              f"출처로 쓰는 카카오톡 채널({names})에 이번 주 전단이 올라오지 않았습니다.",
              "이번 주에는 알림이 가지 않으니, 필요하시면 직접 확인해 주세요."]
+    if skipped:
+        # 행사 이름이 바뀌어 목록에 없는 전단일 수 있는 글. 목요일 17시부터 Claude 가 읽어 봤지만 전단으로 보지 않은 글이다
+        lines += ["", "전단 조건에 맞지 않아 건너뛴 이번 주 글입니다. 이 가운데 전단이 있으면, 그 행사 이름을 목록에 넣어야 다음부터 바로 잡힙니다."]
+        lines += [f"• {x['title']}\n  {x['link']}" for x in skipped[:5]]
     if cfg.get("link"):
         lines += ["", f"{cfg.get('link_name') or '전단 보기'}: {cfg['link']}"]
     return "\n".join(lines)
 
 
-def find_missing(stores, seen, sent, found_now, now):
+def find_missing(stores, seen, sent, found_now, now, near=None):
     today = now.date()
     wk = week_key(today)
     out = []
@@ -110,7 +115,7 @@ def find_missing(stores, seen, sent, found_now, now):
         keys = list(seen.get(s["id"], {}).get("keys", [])) + found_now.get(s["id"], [])
         if has_current(keys, today):
             continue
-        out.append((s, message(s, cfg)))
+        out.append((s, message(s, cfg, (near or {}).get(s["id"], []))))
     return wk, out
 
 
@@ -129,7 +134,8 @@ def main():
     sent = load_json(os.path.join(STATE, "missing.json"), {})
     found_now = found_now_keys(load_json(os.path.join(WORK, "manifest.json"), {}),
                                load_json(os.path.join(WORK, "not_flyers.json"), []))
-    wk, missing = find_missing(stores, seen, sent, found_now, dt.datetime.now())
+    near = load_json(os.path.join(WORK, "near_miss.json"), {})   # fetch_flyers.py 가 모은 '아깝게 걸린 글'
+    wk, missing = find_missing(stores, seen, sent, found_now, dt.datetime.now(), near)
     os.makedirs(WORK, exist_ok=True)
     path = os.path.join(WORK, "missing.json")
     if not missing:
