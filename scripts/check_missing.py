@@ -13,6 +13,7 @@ evaluate.py 가 따로 '직접 확인' 메시지를 보내기 때문이다.
   state/seen.json      : 매장별로 처리한 전단의 날짜 키(11.19|11.25)
   state/missing.json   : 매장별로 안내를 보낸 주
   work/manifest.json   : 이번 실행에서 새로 찾은 전단(있으면)
+  work/not_flyers.json : 그 가운데 읽어 보니 전단이 아니었던 글(evaluate.py). '찾았다'에서 뺀다
 쓰는 파일
   work/missing.json    : {"week": "2026-W47", "stores": [...], "messages": [...]}
   GITHUB_OUTPUT        : ready=true (보낼 안내가 있을 때)
@@ -113,14 +114,21 @@ def find_missing(stores, seen, sent, found_now, now):
     return wk, out
 
 
+def found_now_keys(manifest, not_flyers=()):
+    """이번 실행에서 찾은 전단의 날짜 키(매장별). 읽어 보니 전단이 아니었던 글은 뺀다."""
+    out = {}
+    for f in manifest.get("flyers", []):
+        if f.get("date_key") and f.get("key") not in set(not_flyers):
+            out.setdefault(f["store_id"], []).append(f["date_key"])
+    return out
+
+
 def main():
     stores = load_json(os.path.join(ROOT, "config", "stores.json"), {}).get("stores", [])
     seen = load_json(os.path.join(STATE, "seen.json"), {})
     sent = load_json(os.path.join(STATE, "missing.json"), {})
-    found_now = {}
-    for f in load_json(os.path.join(WORK, "manifest.json"), {}).get("flyers", []):
-        if f.get("date_key"):
-            found_now.setdefault(f["store_id"], []).append(f["date_key"])
+    found_now = found_now_keys(load_json(os.path.join(WORK, "manifest.json"), {}),
+                               load_json(os.path.join(WORK, "not_flyers.json"), []))
     wk, missing = find_missing(stores, seen, sent, found_now, dt.datetime.now())
     os.makedirs(WORK, exist_ok=True)
     path = os.path.join(WORK, "missing.json")

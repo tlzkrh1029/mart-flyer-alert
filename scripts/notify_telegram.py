@@ -4,6 +4,8 @@
   work/messages.json : 전단 하나에 텍스트 메시지 하나
   work/albums.json   : 메시지 순번 → 카드 이미지 앨범(cards/render.py). 있으면 그 텍스트 앞에 앨범을 먼저 보낸다
   work/compare.json  : 목요일 매장 비교 카드. 보내고 나면 state/compare.json 에 이번 주를 적는다
+  work/missing.json  : 이번 주 전단을 찾지 못한 매장 안내. 보내고 나면 state/missing.json 에 이번 주를 적는다
+  work/restricted.json : 로그인해야 볼 수 있어 읽지 못한 전단 글 안내. 보내고 나면 state/restricted.json 에 글 번호를 적는다
 
 앨범은 2~10장을 한 묶음(sendMediaGroup)으로, 1장이면 일반 사진(sendPhoto)으로 보낸다. 설명 글은 첫 장에 붙는다.
 앨범을 보내지 못해도 텍스트는 그대로 보낸다(앨범 실패는 경고로만 남긴다).
@@ -138,14 +140,15 @@ def main():
     albums = load("albums.json", {})
     compare = load("compare.json", None)
     missing = load("missing.json", None)
-    if not messages and not compare and not missing:
+    restricted = load("restricted.json", [])
+    if not messages and not compare and not missing and not restricted:
         print("no messages")
         return 0
     token, chat_id = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     if os.environ.get("DRY_RUN"):
         print(f"DRY_RUN: {len(messages)} message(s), {len(albums)} album(s), compare {'yes' if compare else 'no'}, "
-              f"missing {len((missing or {}).get('messages', []))}; not sent")
-        for m in (missing or {}).get("messages", []):
+              f"missing {len((missing or {}).get('messages', []))}, login-only {len(restricted)}; not sent")
+        for m in (missing or {}).get("messages", []) + [r["message"] for r in restricted]:
             print(m)
         return 0
     if not token or not chat_id:
@@ -190,6 +193,22 @@ def main():
             except Exception as e:  # noqa: BLE001  보내지 못하면 표시하지 않아 다음 실행이 다시 보낸다
                 failed += 1
                 print(f"::error::missing notice for {sid} not sent: {e}")
+            time.sleep(1)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+    if restricted:
+        path = os.path.join(ROOT, "state", "restricted.json")
+        state = load_state(path)
+        for r in restricted:
+            try:
+                send_text(token, chat_id, r["message"])
+                ids = state.get(r["store_id"], [])
+                state[r["store_id"]] = (ids + [r["post_id"]])[-50:]
+                print(f"login-only: notice sent for {r['store_id']} post {r['post_id']}")
+            except Exception as e:  # noqa: BLE001  보내지 못하면 적지 않아 다음 실행이 다시 보낸다
+                failed += 1
+                print(f"::error::login-only notice for {r['store_id']} not sent: {e}")
             time.sleep(1)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(state, f, ensure_ascii=False, indent=1)

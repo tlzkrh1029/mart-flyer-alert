@@ -10,9 +10,12 @@
 쓰는 것
   work/messages.json     : 보낼 메시지 목록(전단 하나에 메시지 하나)
   work/cards.json        : 카드 이미지를 그릴 재료(cards/render.py 가 읽는다). msg 는 messages.json 의 순번
+  work/not_flyers.json   : 읽어 보니 전단이 아니었던 글의 key(사은품 안내처럼 상품 가격이 없는 글). 메시지를 보내지 않는다
   state/history/YYYY-MM/ : 전단별로 옮겨 적은 품목과 판정(나중에 우리 동네 가격 기준을 다시 잡을 때 쓴다)
   state/seen.json        : 처리한 전단 표시. 판독에 실패하면 표시하지 않아 다음 실행이 다시 읽고,
-                           같은 전단을 두 번 실패하면 표시하고 '직접 확인' 메시지를 보낸다
+                           같은 전단을 두 번 실패하면 표시하고 '직접 확인' 메시지를 보낸다.
+                           카카오 전단은 게시물 번호(posts)·날짜 키(keys)·묶음별 읽은 쪽수(read)·제목과 사진 서명(sigs),
+                           전단이 아니었던 글 번호(skip)를 남긴다
 """
 import argparse
 import json
@@ -239,6 +242,8 @@ def build_message(flyer, hits, bogos, unread):
     lines = [f"🛒 {flyer['store_name']} 새 전단"]
     if flyer.get("period"):
         lines.append(flyer["period"])
+    if flyer.get("reread"):
+        lines.append(f"※ {flyer['reread']}")
     if not hits and not bogos:
         lines.append("")
         lines.append("기준에 맞는 품목은 없었습니다.")
@@ -267,14 +272,35 @@ def build_message(flyer, hits, bogos, unread):
 
 # ---------------------------------------------------------------- 상태
 
-def mark_done(seen, flyer):
+def _append(lst, values, cap):
+    return (lst + [v for v in values if v not in lst])[-cap:]
+
+
+def _put(d, key, value, cap):
+    d = dict(d)
+    d.pop(key, None)
+    d[key] = value
+    return dict(list(d.items())[-cap:])
+
+
+def mark_done(seen, flyer, is_flyer=True):
+    """처리한 전단을 표시한다. 읽어 보니 전단이 아니었던 글(is_flyer=False)은 그 글 번호만 skip 에 남기고,
+    그 주를 처리한 것으로 치지 않는다(같은 주의 진짜 전단을 그대로 기다린다)."""
     st = seen.setdefault(flyer["store_id"], {})
     if flyer["source"] == "martmonster":
         st["sig"] = flyer["sig"]
         st["period"] = flyer.get("period", "")
+    elif not is_flyer:
+        st["skip"] = _append(st.get("skip", []), flyer.get("post_ids", [])[:1], 100)
     else:
-        st["posts"] = (st.get("posts", []) + flyer.get("post_ids", []))[-100:]
-        st["keys"] = (st.get("keys", []) + [flyer.get("date_key", "")])[-50:]
+        st["posts"] = _append(st.get("posts", []), flyer.get("post_ids", []), 100)
+        if flyer.get("date_key"):
+            st["keys"] = (st.get("keys", []) + [flyer["date_key"]])[-50:]
+        if flyer.get("group"):           # 같은 주에 쪽수가 훨씬 많은 전단이 오면 다시 읽으려고 읽은 쪽수를 남긴다
+            st["read"] = _put(st.get("read", {}), flyer["group"],
+                              max(st.get("read", {}).get(flyer["group"], 0), flyer.get("pages", 0)), 50)
+        if flyer.get("post_id") and flyer.get("sig"):   # 고쳐 올린 게시물을 알아보려고 제목·사진 서명을 남긴다
+            st["sigs"] = _put(st.get("sigs", {}), str(flyer["post_id"]), flyer["sig"], 100)
     st["at"] = time.strftime("%Y-%m-%d %H:%M")
     st.get("fail", {}).pop(flyer["key"], None)
 
@@ -329,6 +355,8 @@ def merge_batches(batches, raw_outputs):
             m = merged.setdefault(key, {"key": key, "items": [], "unread": []})
             m["items"] += [i for i in (res.get("items") or []) if isinstance(i, dict)]
             m["unread"] += list(res.get("unread") or [])
+            if isinstance(res.get("is_flyer"), bool):   # 나눠 읽은 묶음 가운데 하나라도 전단이라고 했으면 전단이다
+                m["is_flyer"] = m.get("is_flyer", False) or res["is_flyer"]
     return {k: v for k, v in merged.items() if k not in failed}
 
 
@@ -361,10 +389,18 @@ def main():
     batches = load_batches(manifest)
     by_key = merge_batches(batches, load_outputs(args.input, len(batches)))
 
-    messages, summary, cards = [], [], []
+    messages, summary, cards, not_flyers = [], [], [], []
     today = time.strftime("%Y%m%d")
     for flyer in manifest.get("flyers", []):
         res = by_key.get(flyer["key"])
+        if res is not None and res.get("is_flyer") is False and not res.get("items"):
+            # 사은품·경품 안내처럼 상품 가격이 없는 글이었다. 알리지 않고, 그 주 전단은 계속 기다린다
+            print(f"::notice::{flyer['key']}: not a flyer ({flyer.get('title', '')}); no message")
+            not_flyers.append(flyer["key"])
+            summary.append(f"### {flyer['store_name']}\n\n전단이 아닌 글이라 보내지 않았습니다: {flyer.get('title', '')}\n")
+            if not args.no_state:
+                mark_done(seen, flyer, is_flyer=False)
+            continue
         if res is None:
             st = seen.setdefault(flyer["store_id"], {})
             fails = st.setdefault("fail", {})
@@ -389,6 +425,7 @@ def main():
 
     save_json(os.path.join(WORK, "messages.json"), messages)
     save_json(os.path.join(WORK, "cards.json"), cards)
+    save_json(os.path.join(WORK, "not_flyers.json"), not_flyers)   # check_missing.py 가 '이번 주 전단 찾음'에서 뺀다
     if not args.no_state:
         save_json(seen_path, seen)
     for m in messages:

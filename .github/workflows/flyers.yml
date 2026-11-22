@@ -2,15 +2,15 @@ name: flyers
 
 # 매일 두 번 새 전단을 확인한다. 새 전단이 있을 때만 Claude(구독 토큰 CLAUDE_SETUP_TOKEN)가 이미지를 읽고,
 # config/criteria.json 기준에 맞는 품목과 1+1 을 텔레그램으로 보낸다. 새 전단이 없으면 Claude 단계를 건너뛰므로 구독 사용량을 쓰지 않는다.
-#   1) scripts/fetch_flyers.py : 카카오톡 채널(이마트·롯데마트 전국 공통 전단은 지점 채널 여러 곳, 킴스클럽)에서 새 전단을 찾아
-#                               이미지를 내려받고 나눈다
+#   1) scripts/fetch_flyers.py : 카카오톡 채널(이마트 평촌점 채널과 전국 공통 전단을 올리는 지점 채널들, 롯데마트 지점 채널들,
+#                               킴스클럽)에서 새 전단을 찾아 이미지를 내려받고 나눈다. 로그인해야 볼 수 있는 킴스클럽 전단 글은 안내만 만든다
 #   2) Claude 전단 판독 1~5    : 전단마다 세션을 따로 열어 Read 도구 하나만 쓰고, 품목을 구조화된 출력(JSON)으로만 돌려준다
 #                               (prompts/extract.md, prompts/schema.json). 조각이 30개를 넘는 전단은 두 세션에 나눠 읽는다
 #   3) scripts/evaluate.py     : 기준 판정 → 메시지 작성, 처리한 전단을 state/seen.json 에 표시, 품목 기록을 state/history 에 남긴다
 #   4) cards/render.py         : 판정 결과로 1080x1350 카드 이미지(요약·1+1 목록·⭐ 품목이 실린 전단 원본)를 만든다
 #   5) cards/render.py --compare : 목요일 저녁(못 보내면 그 주 일요일까지)에 세 매장 비교 카드를 만든다
 #   6) scripts/check_missing.py : 금요일 저녁(그 주 일요일까지)에도 이번 주 이마트·롯데마트 전단을 찾지 못했으면 안내를 만든다
-#   7) scripts/notify_telegram.py : 매장마다 앨범(설명 글 포함)을 보내고 이어서 텍스트 메시지를 보낸다 → 상태 커밋
+#   7) scripts/notify_telegram.py : 매장마다 앨범(설명 글 포함)을 보내고 이어서 텍스트 메시지·안내를 보낸다 → 상태 커밋
 # 카드 단계가 실패해도 텍스트 메시지는 그대로 보낸다.
 # Claude 단계가 실패하면 그 전단은 표시하지 않아 다음 실행이 다시 읽는다. 같은 전단을 두 번 실패하면 '직접 확인' 메시지를 보내고 넘어간다.
 on:
@@ -237,7 +237,7 @@ jobs:
           python scripts/check_missing.py
 
       - name: 텔레그램 발송
-        if: steps.fetch.outputs.new == 'true' || steps.compare.outputs.ready == 'true' || steps.missing.outputs.ready == 'true'
+        if: steps.fetch.outputs.new == 'true' || steps.fetch.outputs.restricted == 'true' || steps.compare.outputs.ready == 'true' || steps.missing.outputs.ready == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -254,7 +254,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: 상태 커밋
-        if: (steps.fetch.outputs.new == 'true' || steps.compare.outputs.ready == 'true' || steps.missing.outputs.ready == 'true') && inputs.dry_run != true
+        if: (steps.fetch.outputs.new == 'true' || steps.fetch.outputs.restricted == 'true' || steps.compare.outputs.ready == 'true' || steps.missing.outputs.ready == 'true') && inputs.dry_run != true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
