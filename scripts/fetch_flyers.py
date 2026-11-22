@@ -199,7 +199,7 @@ def page_count(post):
 
 
 def is_restricted(post):
-    """카카오 로그인 후에만 볼 수 있는 글. 2025-11~2026-05 킴스클럽 전단 글이 이랬다(adult_only=true).
+    """카카오 로그인 후에만 볼 수 있는 글. 2025년 가을~2026년 봄 킴스클럽 전단 글이 이랬다(adult_only=true).
     사진 대신 자물쇠 그림 한 장(LOCK_IMAGE)만 와서 시스템은 전단을 읽을 수 없다."""
     if post.get("adult_only"):
         return True
