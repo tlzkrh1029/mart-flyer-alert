@@ -229,7 +229,8 @@ def titled_with_period(title, key):
     if not key or DATE_RE.search(title or ""):
         return title
     parts = [p.replace(".", "/") for p in key.split("|")]
-    return f"{title} ({' ~ '.join(parts)})".strip()
+    # 제목 칸이 빈 게시물도 있다(2026-11-20 울산점 전단). 그때는 '이번 주 전단'으로 부른다
+    return f"{(title or '').strip() or '이번 주 전단'} ({' ~ '.join(parts)})"
 
 
 # ---------------------------------------------------------------- 이미지

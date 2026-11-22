@@ -319,6 +319,7 @@ class TestEmartChannels(unittest.TestCase):
     def test_title_with_period(self):
         self.assertEqual(fetch_flyers.titled_with_period("🛒이번 주 이마트 행사 소식", "11.19|11.25"),
                          "🛒이번 주 이마트 행사 소식 (11/19 ~ 11/25)")
+        self.assertEqual(fetch_flyers.titled_with_period("", "11.19|11.25"), "이번 주 전단 (11/19 ~ 11/25)")
         self.assertEqual(fetch_flyers.titled_with_period("11/19(목) ~ 11/25(수) 금주 행사 안내", "11.19|11.25"),
                          "11/19(목) ~ 11/25(수) 금주 행사 안내")
 
