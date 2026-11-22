@@ -1,50 +1,105 @@
 {
-  "_comment": [
-    "전단을 확인할 매장. source=kakao 는 카카오톡 채널 게시물(JSON, robots.txt 허용), source=martmonster 는 마트몬 매장 페이지다.",
-    "2026-11-14: 마트몬이 GitHub Actions 서버의 요청을 403 으로 거절해서, 이마트·롯데마트는 카카오톡 채널로 바꿨다.",
-    "이마트·롯데마트 전단은 전국 공통이므로 매주 빠짐없이 전단을 올리는 지점 채널을 쓴다(평촌점 채널은 전단을 매주 올리지 않고, 의왕점 채널은 찾지 못했다).",
-    "require_any: 제목이나 본문에 이 낱말이 있는 게시물만 전단으로 본다. branch_keyword: 'N개점' 한정 행사는 본문에 이 낱말이 있을 때만 쓴다."
-  ],
-  "stores": [
+ "_comment": [
+  "전단을 확인할 매장. source=kakao 는 카카오톡 채널 게시물(JSON, robots.txt 허용), source=martmonster 는 마트몬 매장 페이지다.",
+  "2026-11-14: 마트몬이 GitHub Actions 서버의 요청을 403 으로 거절해서, 이마트·롯데마트는 카카오톡 채널로 바꿨다.",
+  "이마트·롯데마트 전단은 전국 공통이므로 지점 채널에서 받는다. 지점마다 빠지는 주가 있어 channels 에 여러 채널을 우선순위 순으로 적는다(평촌점·의왕점 채널은 전단 전체를 올리지 않는다).",
+  "2026-11-22 조사: 이마트는 지점 채널마다 전단을 올리는 주가 달라(월배점 11/12, 천안터미널점 10/22·11/12, 원주점 10/15·10/30, 울산점 11/19) 네 곳을 함께 본다. 롯데마트는 세 곳 모두 매주 올린다.",
+  "require_any: 제목이나 본문에 이 낱말이 있는 게시물만 전단으로 본다. exclude_any: 이 낱말이 있으면 제외한다(이마트 '광고상품 안내'는 상품 4개 홍보 글이다).",
+  "same_week_by_start: 채널마다 기간 표기가 달라도(11/12~11/18, 11/12~18) 시작일이 같으면 같은 전단으로 보고 한 번만 처리한다.",
+  "msg_note 의 {channel} 은 실제로 읽은 채널 이름으로 바뀐다. missing_alert: 이 요일·시각이 지나도 이번 주 전단을 찾지 못하면 알린다(weekday 0=월요일).",
+  "branch_keyword: 'N개점' 한정 행사는 본문에 이 낱말이 있을 때만 쓴다."
+ ],
+ "stores": [
+  {
+   "id": "emart_pyeongchon",
+   "name": "이마트 평촌점",
+   "source": "kakao",
+   "channels": [
     {
-      "id": "emart_pyeongchon",
-      "name": "이마트 평촌점",
-      "source": "kakao",
-      "channel": "_ExjSJG",
-      "channel_name": "이마트 월배점",
-      "require_any": ["전단"],
-      "min_images": 5,
-      "max_age_days": 8,
-      "msg_note": "이마트 전국 공통 전단(이마트 월배점 카카오톡 채널)입니다."
+     "id": "_ExjSJG",
+     "name": "이마트 월배점"
     },
     {
-      "id": "lotte_uiwang",
-      "name": "롯데마트 의왕점",
-      "source": "kakao",
-      "channel": "_lBCxiK",
-      "channel_name": "롯데마트 강변점",
-      "require_any": ["전단", "행사 안내", "행사안내"],
-      "min_images": 3,
-      "max_age_days": 8,
-      "msg_note": "롯데마트 전국 공통 전단(롯데마트 강변점 카카오톡 채널)입니다."
+     "id": "_xdGQxls",
+     "name": "이마트 천안터미널점"
     },
     {
-      "id": "homeplus_pyeongchon",
-      "name": "홈플러스 평촌점",
-      "enabled": false,
-      "_comment": "마트몬이 403 으로 막고, 전단을 매주 올리는 홈플러스 카카오톡 채널을 찾지 못해 꺼 둔다",
-      "source": "martmonster",
-      "url": "https://martmonster.com/gyeonggi/4892"
+     "id": "_muxdcxj",
+     "name": "이마트 원주점"
     },
     {
-      "id": "kims_pyeongchon",
-      "name": "킴스클럽 평촌점",
-      "source": "kakao",
-      "channel": "_SBXxmxd",
-      "channel_name": "킴스클럽",
-      "branch_keyword": "평촌",
-      "min_images": 3,
-      "max_age_days": 8
+     "id": "_avxcxob",
+     "name": "이마트 울산점"
     }
-  ]
+   ],
+   "same_week_by_start": true,
+   "require_any": [
+    "전단",
+    "이번 주 이마트 행사",
+    "이번주 이마트 행사"
+   ],
+   "exclude_any": [
+    "광고상품"
+   ],
+   "min_images": 4,
+   "max_age_days": 8,
+   "msg_note": "이마트 전국 공통 전단({channel} 카카오톡 채널)입니다.",
+   "missing_alert": {
+    "weekday": 4,
+    "after_hour": 17,
+    "link": "https://eapp.emart.com/leaflet/leafletView_EL.do",
+    "link_name": "이마트 공식 전단"
+   }
+  },
+  {
+   "id": "lotte_uiwang",
+   "name": "롯데마트 의왕점",
+   "source": "kakao",
+   "channels": [
+    {
+     "id": "_lBCxiK",
+     "name": "롯데마트 강변점"
+    },
+    {
+     "id": "_wxiuXn",
+     "name": "롯데마트 그랑그로서리 은평점"
+    },
+    {
+     "id": "_xoKxfBK",
+     "name": "롯데마트 영종도점"
+    }
+   ],
+   "same_week_by_start": true,
+   "require_any": [
+    "전단",
+    "행사 안내",
+    "행사안내"
+   ],
+   "min_images": 3,
+   "max_age_days": 8,
+   "msg_note": "롯데마트 전국 공통 전단({channel} 카카오톡 채널)입니다.",
+   "missing_alert": {
+    "weekday": 4,
+    "after_hour": 17
+   }
+  },
+  {
+   "id": "homeplus_pyeongchon",
+   "name": "홈플러스 평촌점",
+   "enabled": false,
+   "_comment": "마트몬이 403 으로 막고, 전단을 매주 올리는 홈플러스 카카오톡 채널을 찾지 못해 꺼 둔다",
+   "source": "martmonster",
+   "url": "https://martmonster.com/gyeonggi/4892"
+  },
+  {
+   "id": "kims_pyeongchon",
+   "name": "킴스클럽 평촌점",
+   "source": "kakao",
+   "channel": "_SBXxmxd",
+   "channel_name": "킴스클럽",
+   "branch_keyword": "평촌",
+   "min_images": 3,
+   "max_age_days": 8
+  }
+ ]
 }

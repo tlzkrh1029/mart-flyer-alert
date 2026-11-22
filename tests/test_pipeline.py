@@ -10,6 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
+import check_missing  # noqa: E402
 import evaluate  # noqa: E402
 import fetch_flyers  # noqa: E402
 
@@ -248,6 +249,113 @@ class TestBatches(unittest.TestCase):
         half = evaluate.merge_batches(b, {1: out("kims-3", "a"), 2: out("kims-3", "b", bad), 3: out("emart-1", "c")})
         self.assertNotIn("kims-3", half)
         self.assertEqual(len(p1) + len(p2), 32)
+
+
+
+NOW22 = 1795316400  # 2026-11-22 12:40 KST 무렵
+
+
+def kpost(pid, title, body, n, ch, hours_ago):
+    return {"id": pid, "title": title, "contents": [{"t": "text", "v": body}],
+            "media": [{"type": "image", "xlarge_url": f"{pid}_{i}"} for i in range(n)],
+            "published_at": int((NOW22 - hours_ago * 3600) * 1000), "_ch": {"id": ch, "name": ch}}
+
+
+class TestEmartChannels(unittest.TestCase):
+    """2026-11-22 이마트 출처 조사 결과를 그대로 옮긴 시험"""
+
+    STORES = {s["id"]: s for s in json.load(open(os.path.join(ROOT, "config", "stores.json"), encoding="utf-8"))["stores"]}
+    EMART = STORES["emart_pyeongchon"]
+    # 2026-11-20 이마트 울산점 채널의 실제 게시물 두 개(본문 일부)
+    ULSAN_FLYER = ("🛒이번 주 이마트 행사 소식",
+                   "▶신선식품 : 11/19(목) – 11/25(수)\n▶그 외 품목 : 11/12(목) – 12/2(수)\n우리 가족 취향 저격할 신선 먹거리부터")
+    ULSAN_AD = ("이번주 광고상품 안내",
+                "🗓행사기간 : 11/19(목) ~ 11/25(수)\n· 파머스픽 고당도 감귤 / 돌빌레 감귤\n· 다발무 3,983원\n· 생굴\n· 달링다운 와규 윗등심살")
+
+    def pick(self, items, seen=None):
+        return fetch_flyers.select_kakao_posts({"items": items}, self.EMART, seen or {}, now=NOW22)
+
+    def test_config(self):
+        self.assertEqual([c["name"] for c in fetch_flyers.store_channels(self.EMART)],
+                         ["이마트 월배점", "이마트 천안터미널점", "이마트 원주점", "이마트 울산점"])
+        self.assertEqual(len(fetch_flyers.store_channels(self.STORES["lotte_uiwang"])), 3)
+        self.assertEqual(fetch_flyers.store_channels({"channel": "_x", "channel_name": "a"}), [{"id": "_x", "name": "a"}])
+
+    def test_ulsan_flyer_not_ad(self):
+        flyer = kpost(115302369, *self.ULSAN_FLYER, 4, "_avxcxob", 46)
+        ad = kpost(115302321, *self.ULSAN_AD, 4, "_avxcxob", 47)
+        got = self.pick([flyer, ad])
+        self.assertEqual([(p[0]["id"], p[3], p[4]) for p in got], [(115302369, "11.19|11.25", [115302369])])
+        # 광고상품 글을 나중에 올려도 전단을 고른다(제외 낱말이 없으면 이 경우 광고상품 글이 골라졌다)
+        ad_later = kpost(115302400, *self.ULSAN_AD, 4, "_avxcxob", 40)
+        self.assertEqual([p[0]["id"] for p in self.pick([flyer, ad_later])], [115302369])
+        # 월배점의 같은 광고상품 글만 있는 주에는 아무것도 고르지 않는다
+        self.assertEqual(self.pick([kpost(1, "[이마트월배점] " + self.ULSAN_AD[0], self.ULSAN_AD[1], 4, "_ExjSJG", 90)]), [])
+
+    def test_rules(self):
+        three = kpost(2, "[이마트월배점] 미리 준비하는 김장!! 11/5(목) ~ 11/11(수) 전단", "김장", 3, "_ExjSJG", 10)
+        no_word = kpost(3, "[이마트월배점] 이마트 PICK! 경동나비엔 온수매트!", "🗓행시기간 : 11/19(목) ~ 11/25(수)", 4, "_ExjSJG", 10)
+        self.assertEqual(self.pick([three, no_word]), [])     # 사진 3장, '전단'·'이번 주 이마트 행사' 없음
+
+    def test_same_week_across_channels(self):
+        # 11/12 주(게시 시각은 이번 주로 옮김): 월배점(기간 11/12~11/18, 12장)과 천안터미널점(본문 11/12(목)~18(수), 6장)이 같은 전단을 올렸다
+        wolbae = kpost(115205793, "[이마트월배점]금주 전단행사 안내(11/12(목) ~ 11/18(수)", "행사기간 : 11/12(목) ~ 11/18(수)", 12, "_ExjSJG", 30)
+        cheonan = kpost(115206000, "[이마트천안터미널점] 금주전단행사", "행사기간 : 11/12(목)~18(수)", 6, "_xdGQxls", 10)
+        self.assertEqual(fetch_flyers.date_key(cheonan["title"], _text(cheonan)), "11.12")
+        got = self.pick([cheonan, wolbae])
+        self.assertEqual(len(got), 1)                           # 시작일이 같으면 한 번만 처리한다
+        self.assertEqual(got[0][0]["id"], 115205793)            # 사진이 많은 월배점 것을 읽는다
+        self.assertEqual(sorted(got[0][4]), [115205793, 115206000])
+        self.assertEqual(got[0][0]["_ch"]["id"], "_ExjSJG")
+        # 다음 실행에서 천안터미널점 글만 남아 있어도(기간 표기가 달라도) 다시 읽지 않는다
+        self.assertEqual(self.pick([cheonan], {"keys": ["11.12|11.18"], "posts": []}), [])
+
+    def test_fallback_channel(self):
+        # 월배점에 이번 주 전단이 없으면 다른 채널의 전단을 고르고, 그 채널 이름을 출처로 쓴다
+        flyer = kpost(115302369, *self.ULSAN_FLYER, 4, "_avxcxob", 46)
+        got = self.pick([kpost(1, "[이마트월배점] " + self.ULSAN_AD[0], self.ULSAN_AD[1], 4, "_ExjSJG", 90), flyer])
+        self.assertEqual([p[0]["_ch"]["id"] for p in got], ["_avxcxob"])
+
+    def test_title_with_period(self):
+        self.assertEqual(fetch_flyers.titled_with_period("🛒이번 주 이마트 행사 소식", "11.19|11.25"),
+                         "🛒이번 주 이마트 행사 소식 (11/19 ~ 11/25)")
+        self.assertEqual(fetch_flyers.titled_with_period("11/19(목) ~ 11/25(수) 금주 행사 안내", "11.19|11.25"),
+                         "11/19(목) ~ 11/25(수) 금주 행사 안내")
+
+
+def _text(post):
+    return fetch_flyers._post_text(post)
+
+
+class TestMissing(unittest.TestCase):
+    STORES = TestEmartChannels.STORES
+
+    def run_at(self, when, seen=None, sent=None, found=None):
+        import datetime as dt
+        now = dt.datetime(*when)
+        wk, got = check_missing.find_missing(list(self.STORES.values()), seen or {}, sent or {}, found or {}, now)
+        return wk, [s["id"] for s, _ in got], [m for _, m in got]
+
+    def test_friday_evening(self):
+        last_week = {"emart_pyeongchon": {"keys": ["11.12|11.18"]}, "lotte_uiwang": {"keys": ["11.19|11.25"]}}
+        wk, ids, msgs = self.run_at((2026, 11, 20, 17, 50), seen=last_week)
+        self.assertEqual((wk, ids), ("2026-W47", ["emart_pyeongchon"]))   # 롯데마트는 이번 주 전단이 있다
+        self.assertIn("이마트 월배점, 이마트 천안터미널점, 이마트 원주점, 이마트 울산점", msgs[0])
+        self.assertIn("https://eapp.emart.com/leaflet/leafletView_EL.do", msgs[0])
+
+    def test_not_due_or_already_sent(self):
+        seen = {"emart_pyeongchon": {"keys": ["11.12|11.18"]}, "lotte_uiwang": {"keys": ["11.19|11.25"]}}
+        self.assertEqual(self.run_at((2026, 11, 20, 13, 0), seen=seen)[1], [])          # 금요일 낮에는 아직
+        self.assertEqual(self.run_at((2026, 11, 19, 20, 0), seen=seen)[1], [])          # 목요일
+        self.assertEqual(self.run_at((2026, 11, 22, 3, 0), seen=seen, sent={"emart_pyeongchon": "2026-W47"})[1], [])
+        self.assertEqual(self.run_at((2026, 11, 22, 3, 0), seen=seen)[1], ["emart_pyeongchon"])   # 일요일 새벽 실행도 보낸다
+
+    def test_found_now_or_event(self):
+        seen = {"lotte_uiwang": {"keys": ["11.19|11.25"]}}
+        self.assertEqual(self.run_at((2026, 11, 20, 18, 0), seen=seen, found={"emart_pyeongchon": ["11.19"]})[1], [])
+        # 쓱데이처럼 기간이 긴 행사(10/30~11/8)가 이어지는 주에는 보내지 않는다
+        ev = {"emart_pyeongchon": {"keys": ["10.30|11.8"]}, "lotte_uiwang": {"keys": ["11.5|11.11"]}}
+        self.assertEqual(self.run_at((2026, 11, 6, 18, 0), seen=ev)[1], [])
 
 
 if __name__ == "__main__":

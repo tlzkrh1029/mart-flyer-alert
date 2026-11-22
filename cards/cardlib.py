@@ -370,7 +370,7 @@ def store_context(flyer, items, criteria, store_cfg=None, hero_max=3, today=None
                              -(ev.discount_pct(r) or 0)))
     heroes, rest = rich[:hero_max], rich[hero_max:]
     rest.sort(key=lambda r: (cat_rank(r.get("cat")), 0 if r["v"]["level"] == "great" else 1))
-    note = (store_cfg or {}).get("msg_note") or flyer.get("note") or ""
+    note = flyer.get("note") or (store_cfg or {}).get("msg_note") or ""
     footer_head = note.split("(")[0].strip() + " 기준이며" if "전국 공통" in note else "전단 기준이며"
     return dict(
         store=flyer.get("store_name") or (store_cfg or {}).get("name") or "",

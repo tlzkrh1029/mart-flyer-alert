@@ -125,16 +125,28 @@ def chunks(text):
         yield buf
 
 
+def load_state(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
 def main():
     messages = load("messages.json", [])
     albums = load("albums.json", {})
     compare = load("compare.json", None)
-    if not messages and not compare:
+    missing = load("missing.json", None)
+    if not messages and not compare and not missing:
         print("no messages")
         return 0
     token, chat_id = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     if os.environ.get("DRY_RUN"):
-        print(f"DRY_RUN: {len(messages)} message(s), {len(albums)} album(s), compare {'yes' if compare else 'no'}; not sent")
+        print(f"DRY_RUN: {len(messages)} message(s), {len(albums)} album(s), compare {'yes' if compare else 'no'}, "
+              f"missing {len((missing or {}).get('messages', []))}; not sent")
+        for m in (missing or {}).get("messages", []):
+            print(m)
         return 0
     if not token or not chat_id:
         print("::warning::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; messages not sent")
@@ -167,6 +179,21 @@ def main():
         except Exception as e:  # noqa: BLE001  보내지 못하면 표시하지 않아 다음 실행이 다시 보낸다
             failed += 1
             print(f"::error::compare card not sent: {e}")
+    if missing:
+        path = os.path.join(ROOT, "state", "missing.json")
+        state = load_state(path)
+        for sid, msg in zip(missing.get("stores", []), missing.get("messages", [])):
+            try:
+                send_text(token, chat_id, msg)
+                state[sid] = missing.get("week")
+                print(f"missing: notice sent for {sid}")
+            except Exception as e:  # noqa: BLE001  보내지 못하면 표시하지 않아 다음 실행이 다시 보낸다
+                failed += 1
+                print(f"::error::missing notice for {sid} not sent: {e}")
+            time.sleep(1)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=1)
+            f.write("\n")
     print(f"sent {len(messages)} message(s), {len(albums)} album(s), {failed} failure(s)")
     return 1 if failed else 0
 

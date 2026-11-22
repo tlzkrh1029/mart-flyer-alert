@@ -167,15 +167,32 @@ def date_key(title, text=""):
     return "|".join(f"{int(m)}.{int(d)}" for m, d in ds[:2])
 
 
+def store_channels(store):
+    """매장이 전단을 찾아볼 카카오톡 채널 목록(우선순위 순). 예전 설정(channel 하나)도 받는다."""
+    chans = store.get("channels") or [{"id": store["channel"], "name": store.get("channel_name", "")}]
+    return [{"id": c["id"], "name": c.get("name", "")} for c in chans]
+
+
+def week_start(key):
+    """날짜 키 '11.19|11.25' 의 시작일 '11.19'"""
+    return (key or "").split("|")[0]
+
+
 def select_kakao_posts(data, store, seen, now=None):
-    """새로 처리할 전단 게시물을 고른다. 반환: [(게시물, 이미지 주소, 본문, 날짜 키, 같은 행사 게시물 번호들)]"""
+    """새로 처리할 전단 게시물을 고른다. 반환: [(게시물, 이미지 주소, 본문, 날짜 키, 같은 행사 게시물 번호들)]
+    data["items"] 에는 여러 채널의 게시물이 섞여 있을 수 있다(게시물의 '_ch' 에 채널 정보)."""
     now = now or time.time()
     seen_ids = set(seen.get("posts", []))
     seen_keys = set(seen.get("keys", []))
     branch = store.get("branch_keyword", "")
     require = store.get("require_any") or []     # 예: ["전단"] → 제목이나 본문에 이 낱말이 있는 게시물만
+    exclude = store.get("exclude_any") or []     # 예: ["광고상품"] → 이 낱말이 있으면 사진이 많아도 전단으로 보지 않는다
     min_images = int(store.get("min_images", 3))
     max_age = float(store.get("max_age_days", 8)) * 86400
+    # 여러 채널이 같은 주 전단을 기간 표기만 달리 올리는 경우(11.12|11.18 과 11.12)를 하나로 보려고 시작일로 묶는다
+    by_start = bool(store.get("same_week_by_start"))
+    group_of = week_start if by_start else (lambda k: k)
+    seen_groups = {group_of(k) for k in seen_keys}
     groups = {}
     for post in data.get("items", []):
         title = post.get("title") or ""
@@ -186,21 +203,33 @@ def select_kakao_posts(data, store, seen, now=None):
             continue
         if require and not any(w in title + text for w in require):
             continue
+        if exclude and any(w in title + text for w in exclude):
+            continue
         published = (post.get("published_at") or 0) / 1000
         if now - published > max_age:
             continue
         # 'N개점' 처럼 일부 매장만 하는 행사인데 본문에 우리 매장 이름이 없으면 건너뛴다
         if re.search(r"\d+\s*개\s*점", text + title) and branch and branch not in text + title:
             continue
-        groups.setdefault(key, []).append((post, images, text))
+        groups.setdefault(group_of(key), []).append((post, images, text, key))
     chosen = []
-    for key, posts in groups.items():
-        if key in seen_keys or any(p.get("id") in seen_ids for p, _, _ in posts):
+    for gkey, posts in groups.items():
+        if gkey in seen_groups or any(p.get("id") in seen_ids for p, _, _, _ in posts):
             continue
+        # 사진이 많은 게시물(전단 전체에 가까운 것)을 고르고, 같으면 나중에 올린 것을 고른다
         posts.sort(key=lambda x: (len(x[1]), x[0].get("published_at") or 0), reverse=True)
-        post, images, text = posts[0]
-        chosen.append((post, images, text, key, [p.get("id") for p, _, _ in posts]))
+        post, images, text, key = posts[0]
+        chosen.append((post, images, text, key, [p.get("id") for p, _, _, _ in posts]))
     return chosen
+
+
+def titled_with_period(title, key):
+    """제목에 날짜가 없으면(예: '🛒이번 주 이마트 행사 소식') 본문에서 읽은 행사 기간을 붙인다.
+    메시지·카드가 제목에서 기간을 읽기 때문이다."""
+    if not key or DATE_RE.search(title or ""):
+        return title
+    parts = [p.replace(".", "/") for p in key.split("|")]
+    return f"{title} ({' ~ '.join(parts)})".strip()
 
 
 # ---------------------------------------------------------------- 이미지
@@ -352,9 +381,20 @@ def main():
                 })
                 log(f"{sid}: new flyer {sig} · {info['period']} · {len(info['images'])} images → {len(images)} chunks")
             elif store["source"] == "kakao":
-                url = f"https://pf.kakao.com/rocket-web/web/v2/profiles/{store['channel']}/posts?includePinnedPost=true"
-                data = json.loads(http_get(url, accept="application/json").decode("utf-8"))
-                picks = select_kakao_posts(data, store, {} if forced else st)
+                items = []
+                for ci, ch in enumerate(store_channels(store)):
+                    if ci:
+                        time.sleep(1)
+                    url = f"https://pf.kakao.com/rocket-web/web/v2/profiles/{ch['id']}/posts?includePinnedPost=true"
+                    try:
+                        data = json.loads(http_get(url, accept="application/json").decode("utf-8"))
+                    except Exception as e:  # noqa: BLE001  채널 하나가 실패해도 다른 채널은 본다
+                        warn(f"{sid}: channel {ch['id']} ({ch['name']}): {e}")
+                        continue
+                    for post in data.get("items", []):
+                        post["_ch"] = ch
+                        items.append(post)
+                picks = select_kakao_posts({"items": items}, store, {} if forced else st)
                 if not picks:
                     log(f"{sid}: no new posts")
                 for post, urls, text, dkey, ids in picks:
@@ -368,14 +408,17 @@ def main():
                     images, slots = take_slots(flyers, images, slots, sid, post.get("id"))
                     if images is None:
                         break
+                    ch = post.get("_ch") or store_channels(store)[0]
+                    title = titled_with_period(post.get("title") or "", dkey)
                     flyers.append({
                         "key": key, "store_id": sid, "store_name": store["name"], "source": "kakao",
-                        "title": post.get("title") or "", "period": post.get("title") or "",
-                        "link": f"https://pf.kakao.com/{store['channel']}/{post.get('id')}",
+                        "title": title, "period": title,
+                        "link": f"https://pf.kakao.com/{ch['id']}/{post.get('id')}",
+                        "channel_name": ch["name"],
                         "post_ids": ids, "date_key": dkey, "images": images, "text": text[:4000],
-                        "note": store.get("msg_note", ""),
+                        "note": store.get("msg_note", "").replace("{channel}", ch["name"]),
                     })
-                    log(f"{sid}: new post {post.get('id')} · {post.get('title')} · {len(images)} images")
+                    log(f"{sid}: new post {post.get('id')} from {ch['name'] or ch['id']} · {title} · {len(images)} images")
             else:
                 warn(f"{sid}: unknown source {store['source']}")
         except Exception as e:  # noqa: BLE001
